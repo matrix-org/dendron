@@ -14,7 +14,7 @@ import (
 var (
 	synapseConfig = flag.String("synapse-config", "homeserver.yaml", "Path to a synapse config")
 	synapsePython = flag.String("synapse-python", "python", "Path to a python interpreter")
-	synapseURLStr = flag.String("synapse-url", "http://localhost:18448", "Where synapse will be running")
+	synapseURL    = flag.String("synapse-url", "http://localhost:18448", "Where synapse will be running")
 )
 
 var (
@@ -28,7 +28,7 @@ type SynapseProxy struct {
 	Client http.Client
 }
 
-func (p SynapseProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (p *SynapseProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	url := *req.URL
 	url.Scheme = p.URL.Scheme
 	url.Host = p.URL.Host
@@ -46,6 +46,7 @@ func (p SynapseProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		w.WriteHeader(500)
 		fmt.Fprintln(w, "Error:", err)
+		return
 	}
 	defer resp.Body.Close()
 
@@ -61,7 +62,7 @@ func main() {
 
 	var synapseProxy SynapseProxy
 
-	if u, err := url.Parse(*synapseURLStr); err != nil {
+	if u, err := url.Parse(*synapseURL); err != nil {
 		panic(err)
 	} else {
 		synapseProxy.URL = *u
