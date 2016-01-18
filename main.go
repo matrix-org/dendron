@@ -4,10 +4,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"time"
 )
 
@@ -57,6 +59,15 @@ func (p *SynapseProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	io.Copy(w, resp.Body)
 }
 
+func HandleSignal(channel chan os.Signal, synapse *os.Process) {
+	select {
+	case sig := <-channel:
+		log.Print("Got signal: ", sig)
+		synapse.Signal(os.Interrupt)
+		os.Exit(1)
+	}
+}
+
 func main() {
 	flag.Parse()
 
@@ -69,7 +80,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/", synapseProxy)
+	mux.Handle("/", &synapseProxy)
 	mux.HandleFunc("/_dendron/test", func(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintln(w, "test")
 	})
@@ -86,9 +97,14 @@ func main() {
 
 	synapse := exec.Command(*synapsePython, "-m", "synapse.app.homeserver", "-c", *synapseConfig)
 	synapse.Stderr = os.Stderr
-	fmt.Fprintln(os.Stderr, "Dendron: Starting synapse...")
+	log.Print("Dendron: Starting synapse...")
 
 	synapse.Start()
+
+	channel := make(chan os.Signal, 1)
+	signal.Notify(channel, os.Interrupt)
+	go HandleSignal(channel, synapse.Process)
+
 	if err := synapse.Wait(); err != nil {
 		panic(err)
 	}
