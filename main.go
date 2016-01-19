@@ -1,15 +1,18 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -91,9 +94,12 @@ func main() {
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
+		TLSConfig:      &tls.Config{},
 	}
 
-	go s.ListenAndServeTLS(*listenCertFile, *listenKeyFile)
+	cert, err := tls.LoadX509KeyPair(*listenCertFile, *listenKeyFile)
+
+	(*s.TLSConfig).Certificates = append((*s.TLSConfig).Certificates, cert)
 
 	synapse := exec.Command(*synapsePython, "-m", "synapse.app.homeserver", "-c", *synapseConfig)
 	synapse.Stderr = os.Stderr
@@ -104,6 +110,28 @@ func main() {
 	channel := make(chan os.Signal, 1)
 	signal.Notify(channel, os.Interrupt)
 	go HandleSignal(channel, synapse.Process)
+
+	sigusr := make(chan os.Signal, 1)
+	signal.Notify(sigusr, syscall.SIGUSR1)
+	select {
+	case <-sigusr:
+		log.Print("Dendron: Synapse started")
+	}
+
+	listener, err := net.Listen("tcp", s.Addr)
+	if err != nil {
+		panic(err)
+	}
+
+	tlsListener := tls.NewListener(listener, s.TLSConfig)
+
+	go s.Serve(tlsListener)
+
+	parent, err := os.FindProcess(os.Getppid())
+	if err != nil {
+		panic(err)
+	}
+	parent.Signal(syscall.SIGUSR1)
 
 	if err := synapse.Wait(); err != nil {
 		panic(err)
