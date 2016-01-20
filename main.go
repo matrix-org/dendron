@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"syscall"
 	"time"
 )
 
@@ -71,6 +70,20 @@ func HandleSignal(channel chan os.Signal, synapse *os.Process) {
 	}
 }
 
+func WaitForSynapse(sp *SynapseProxy) error {
+	period := 10 * time.Millisecond
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if resp, err := sp.Client.Get(sp.URL.String()); err == nil {
+			resp.Body.Close()
+			return nil
+		}
+		time.Sleep(period)
+		period *= 2
+	}
+	return fmt.Errorf("failed to start synapse")
+}
+
 func main() {
 	flag.Parse()
 
@@ -111,12 +124,11 @@ func main() {
 	signal.Notify(channel, os.Interrupt)
 	go HandleSignal(channel, synapse.Process)
 
-	sigusr := make(chan os.Signal, 1)
-	signal.Notify(sigusr, syscall.SIGUSR1)
-	select {
-	case <-sigusr:
-		log.Print("Dendron: Synapse started")
+	if err := WaitForSynapse(&synapseProxy); err != nil {
+		panic(err)
 	}
+
+	log.Print("Dendron: Synapse started")
 
 	listener, err := net.Listen("tcp", s.Addr)
 	if err != nil {
@@ -126,12 +138,6 @@ func main() {
 	tlsListener := tls.NewListener(listener, s.TLSConfig)
 
 	go s.Serve(tlsListener)
-
-	parent, err := os.FindProcess(os.Getppid())
-	if err != nil {
-		panic(err)
-	}
-	parent.Signal(syscall.SIGUSR1)
 
 	if err := synapse.Wait(); err != nil {
 		panic(err)
