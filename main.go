@@ -81,7 +81,7 @@ func WaitForSynapse(sp *SynapseProxy) error {
 		time.Sleep(period)
 		period *= 2
 	}
-	return fmt.Errorf("Failed to start synapse")
+	return fmt.Errorf("failed to start synapse")
 }
 
 func main() {
