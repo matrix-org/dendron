@@ -16,6 +16,8 @@ import (
 	"proxy"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	_ "github.com/lib/pq" /* Database driver for postgres */
 )
 
@@ -92,13 +94,17 @@ func main() {
 		panic(err)
 	}
 
+	loginFunc := prometheus.InstrumentHandler("login", loginHandler)
+	proxyFunc := prometheus.InstrumentHandler("proxy", &synapseProxy)
+
 	mux := http.NewServeMux()
-	mux.Handle("/", &synapseProxy)
-	mux.Handle("/_matrix/client/api/v1/login", loginHandler)
-	mux.Handle("/_matrix/client/r0/login", loginHandler)
+	mux.Handle("/", proxyFunc)
+	mux.Handle("/_matrix/client/api/v1/login", loginFunc)
+	mux.Handle("/_matrix/client/r0/login", loginFunc)
 	mux.HandleFunc("/_dendron/test", func(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintln(w, "test")
 	})
+	mux.Handle("/_dendron/metrics", prometheus.Handler())
 
 	cert, err := tls.LoadX509KeyPair(*listenCertFile, *listenKeyFile)
 	if err != nil {
