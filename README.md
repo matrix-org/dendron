@@ -1,40 +1,46 @@
 Dendron
 =======
 
-Dendron is a Matrix(link to matrix.org) homeserver written in go(lang?)
-(what is this language called again?).
+Dendron is a [Matrix](https://matrix.org "Matrix") homeserver written in Go.
 
 Rather than write a Matrix homeserver from scratch, Dendron acts as a proxy for
-an existing homeserver synapse(link to synapse) written in python.
-This means that it can be already be used as a fully-featured homeserver.
-
-You can track our progress in implementing the Matrix APIs at (link to some kind of tracking thing?)
+an existing homeserver [Synapse](https://github.com/matrix-org/synapse "Synapse")
+written in python. This means that it can be already be used as a fully-featured
+homeserver.
 
 Building
 --------
 
-Currently to use Dendron you will need an working install of Synapse. Instructions
-for setting up Synapse (link to synapse install instructions).
+Currently to use Dendron you will need an development install of Synapse. See
+[these instructions](https://github.com/matrix-org/synapse#synapse-development "Synapse Development") 
+for setting up a dev install of Synapse.
 
-To build Dendron itself:
+To build Dendron itself check out this repository and build it using [gb](https://getgb.io):
 
-   (instructions for building a go thing)
+    gb build
 
 
-Configuring Synapse
--------------------
+Configuring
+-----------
 
-You will need to configure Synapse with a plain HTTP listener so that Dendron can forward
-requests to it:
+WARNING: Dendron is currently in the early stages of development. These
+instructions are likely to change frequently and no effort is made to provide
+backwards compatibility.
 
-    (instructions on setting up the listener)
+### Configuring Synapse
 
-Once Synapse is configured then Dendron can be started by running:
+You will need to configure Synapse to use [PostgreSQL])https://github.com/matrix-org/synapse#using-postgresql)
+for storage.
 
-    (example command line for starting Dendron)
+You will need to setup an unsecure HTTP listener for Dendron to proxy requests to.
+
+### Configuring Dendron
+
+The configuration for Dendron is passed on the command line.
+
 
 SyTest
 ------
 
-Dendron can be tested using sytest(link to sytest), a black box matrix integration tester.
-See the sytest project page for instructions(link to project page).
+Dendron can be tested using [SyTest](https://github.com/matrix-org/sytest#dendron), a 
+black box matrix integration tester. See the SyTest project page for instructions
