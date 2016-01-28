@@ -44,27 +44,21 @@ func handleSignal(channel chan os.Signal, synapse *os.Process) {
 }
 
 func waitForSynapse(sp *proxy.SynapseProxy) error {
-	period := 10 * time.Millisecond
-	deadline := time.Now().Add(10 * time.Second)
+	log.Printf("Connecting to synapse at %s...", sp.URL.String())
+	period := 50 * time.Millisecond
+	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		log.Printf("Connecting to synapse...")
 		if resp, err := sp.Client.Get(sp.URL.String()); err == nil {
 			resp.Body.Close()
 			return nil
 		}
 		time.Sleep(period)
-		period *= 2
 	}
 	return fmt.Errorf("failed to start synapse")
 }
 
 func main() {
 	flag.Parse()
-
-	db, err := sql.Open("postgres", *synapseDB)
-	if err != nil {
-		panic(err)
-	}
 
 	var synapseProxy proxy.SynapseProxy
 
@@ -89,6 +83,11 @@ func main() {
 	}
 
 	log.Print("Dendron: Synapse started")
+
+	db, err := sql.Open("postgres", *synapseDB)
+	if err != nil {
+		panic(err)
+	}
 
 	loginHandler, err := login.NewHandler(db, &synapseProxy, *serverName, *macaroonSecret)
 	if err != nil {
