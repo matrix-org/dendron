@@ -79,7 +79,8 @@ func (h *MatrixLoginHandler) ServeHTTP(w http.ResponseWriter, req *http.Request)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json")
+		proxy.SetHeaders(w)
+
 		json.NewEncoder(w).Encode(response)
 	default:
 		h.proxy.ProxyHTTP(w, req.Method, req.URL, bytes.NewBuffer(body), req.ContentLength, req.Header)

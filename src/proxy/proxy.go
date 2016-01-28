@@ -24,10 +24,19 @@ type HTTPError struct {
 	Message string
 }
 
+// SetHeaders sets the "Content-Type" to "application/json" and sets CORS
+// headers so that arbitrary sites can use the APIs.
+func SetHeaders(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept")
+}
+
 // LogAndReplyError logs the httpError and writes a JSON formatted error to w.
 func LogAndReplyError(w http.ResponseWriter, httpError *HTTPError) {
 	log.Printf("%s: %v", httpError.Message, httpError.Err)
-	w.Header().Set("Content-Type", "application/json")
+	SetHeaders(w)
 	w.WriteHeader(httpError.StatusCode)
 	fmt.Fprintf(w, `{"errcode":"%s","error":"%s"}`, httpError.ErrCode, httpError.Message)
 }
