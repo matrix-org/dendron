@@ -1,3 +1,13 @@
 .*.swp
 bin
 pkg
+
+.synapse-base/
+.sytest-base/
+.venv/
+synapse/
+sytest/
+
+results.xml
+lint.txt
+vet.txt
