@@ -22,6 +22,7 @@ import (
 )
 
 var (
+	startSynapse   = flag.Bool("start-synapse", true, "Start a synapse process, otherwise connect to an existing synapse")
 	synapseConfig  = flag.String("synapse-config", "homeserver.yaml", "Path to synapse's config")
 	synapsePython  = flag.String("synapse-python", "python", "A python interpreter to use for synapse. This should be the python binary installed inside synapse's virtualenv. The interpreter will be looked up on the $PATH")
 	synapseURL     = flag.String("synapse-url", "http://localhost:18448", "The HTTP URL that synapse is configured to listen on.")
@@ -74,21 +75,27 @@ func main() {
 		synapseProxy.URL = *u
 	}
 
-	synapse := exec.Command(*synapsePython, "-m", "synapse.app.homeserver", "-c", *synapseConfig)
-	synapse.Stderr = os.Stderr
-	log.Print("Dendron: Starting synapse...")
+	var synapse *exec.Cmd
 
-	synapse.Start()
+	if *startSynapse {
+		synapse = exec.Command(*synapsePython, "-m", "synapse.app.homeserver", "-c", *synapseConfig)
+		synapse.Stderr = os.Stderr
+		log.Print("Dendron: Starting synapse...")
 
-	channel := make(chan os.Signal, 1)
-	signal.Notify(channel, os.Interrupt)
-	go handleSignal(channel, synapse.Process)
+		synapse.Start()
 
-	if err := waitForSynapse(&synapseProxy); err != nil {
-		panic(err)
+		channel := make(chan os.Signal, 1)
+		signal.Notify(channel, os.Interrupt)
+		go handleSignal(channel, synapse.Process)
+
+		if err := waitForSynapse(&synapseProxy); err != nil {
+			panic(err)
+		}
+
+		log.Print("Dendron: Synapse started")
+	} else {
+		log.Printf("Dendron: Using existing synapse at %v", synapseProxy.URL.String())
 	}
-
-	log.Print("Dendron: Synapse started")
 
 	loginHandler, err := login.NewHandler(db, &synapseProxy, *serverName, *macaroonSecret)
 	if err != nil {
@@ -135,7 +142,11 @@ func main() {
 
 	go s.Serve(listener)
 
-	if err := synapse.Wait(); err != nil {
-		panic(err)
+	if synapse != nil {
+		if err := synapse.Wait(); err != nil {
+			panic(err)
+		}
+	} else {
+		select {}
 	}
 }
