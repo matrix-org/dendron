@@ -28,9 +28,10 @@ var (
 	synapseDB      = flag.String("synapse-postgres", "", "Database config for the postgresql as per https://godoc.org/github.com/lib/pq#hdr-Connection_String_Parameters. This must point to the same database that synapse is configured to use")
 	serverName     = flag.String("server-name", "", "Matrix server name. This must match the server_name configured for synapse.")
 	macaroonSecret = flag.String("macaroon-secret", "", "Secret key for macaroons. This must match the macaroon_secret_key configured for synapse.")
-	listenAddr     = flag.String("addr", ":8448", "Address to listen for matrix HTTPS requests on")
+	listenAddr     = flag.String("addr", ":8448", "Address to listen for matrix requests on")
+	listenTLS      = flag.Bool("tls", true, "Listen for HTTPS requests, otherwise listen for HTTP requests")
 	listenCertFile = flag.String("cert-file", "", "TLS Certificate. This must match the tls_certificate_path configured for synapse.")
-	listenKeyFile  = flag.String("key-file", "", "TLS Private Key. The private key for the certificate.")
+	listenKeyFile  = flag.String("key-file", "", "TLS Private Key. The private key for the certificate. This must be set if listening for HTTPS requests")
 )
 
 func handleSignal(channel chan os.Signal, synapse *os.Process) {
@@ -106,22 +107,12 @@ func main() {
 	})
 	mux.Handle("/_dendron/metrics", prometheus.Handler())
 
-	cert, err := tls.LoadX509KeyPair(*listenCertFile, *listenKeyFile)
-	if err != nil {
-		panic(err)
-	}
-
-	c := tls.Config{
-		Certificates: []tls.Certificate{cert},
-	}
-
 	s := &http.Server{
 		Addr:           *listenAddr,
 		Handler:        mux,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
-		TLSConfig:      &c,
 	}
 
 	listener, err := net.Listen("tcp", s.Addr)
@@ -129,9 +120,20 @@ func main() {
 		panic(err)
 	}
 
-	tlsListener := tls.NewListener(listener, s.TLSConfig)
+	if *listenTLS {
+		cert, err := tls.LoadX509KeyPair(*listenCertFile, *listenKeyFile)
+		if err != nil {
+			panic(err)
+		}
 
-	go s.Serve(tlsListener)
+		s.TLSConfig = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}
+
+		listener = tls.NewListener(listener, s.TLSConfig)
+	}
+
+	go s.Serve(listener)
 
 	if err := synapse.Wait(); err != nil {
 		panic(err)
