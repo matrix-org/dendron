@@ -9,8 +9,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"proxy"
 	"time"
+
+	"github.com/matrix-org/dendron/proxy"
 
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/macaroon.v1"
