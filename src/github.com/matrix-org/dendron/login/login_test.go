@@ -110,7 +110,13 @@ type tokenRow struct {
 	userID string
 }
 
+type threePID struct {
+	medium  string
+	address string
+}
+
 type mockDatabase struct {
+	threePIDs     map[threePID]string
 	passwords     map[string]string
 	accessTokens  []tokenRow
 	refreshTokens []tokenRow
@@ -127,4 +133,11 @@ func (m *mockDatabase) insertTokens(userID, accessToken, refreshToken string) er
 	m.accessTokens = append(m.accessTokens, tokenRow{accessToken, userID})
 	m.refreshTokens = append(m.refreshTokens, tokenRow{refreshToken, userID})
 	return nil
+}
+
+func (m *mockDatabase) matrixIDFor3PID(medium, address string) (string, error) {
+	if val, ok := m.threePIDs[threePID{medium, address}]; ok {
+		return val, nil
+	}
+	return "", fmt.Errorf("no such 3PID: %s, %s", medium, address)
 }
