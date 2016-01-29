@@ -11,6 +11,14 @@ const (
 )
 
 func TestGoodPassword(t *testing.T) {
+	testGoodPassword(t, testUserID)
+}
+
+func TestLocalPartOnly(t *testing.T) {
+	testGoodPassword(t, "test")
+}
+
+func testGoodPassword(t *testing.T, userID string) {
 	db := mockDatabase{
 		passwords: map[string]string{
 			testUserID: testPasswordBcrypt,
@@ -23,7 +31,7 @@ func TestGoodPassword(t *testing.T) {
 		macaroonSecret: "test_secret",
 	}
 
-	r, err := h.loginPassword(testUserID, "test_password")
+	r, err := h.loginPassword(userID, "test_password")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,22 +71,27 @@ func TestBadPassword(t *testing.T) {
 			testUserID: testPasswordBcrypt,
 		},
 	}
-	testExpectLoginFailure(t, &db)
+	testExpectLoginFailure(t, &db, testUserID)
 }
 
 func TestUnkownUserID(t *testing.T) {
 	db := mockDatabase{}
-	testExpectLoginFailure(t, &db)
+	testExpectLoginFailure(t, &db, testUserID)
 }
 
-func testExpectLoginFailure(t *testing.T, db *mockDatabase) {
+func TestEmptyUserID(t *testing.T) {
+	db := mockDatabase{}
+	testExpectLoginFailure(t, &db, "")
+}
+
+func testExpectLoginFailure(t *testing.T, db *mockDatabase, userID string) {
 	h := &MatrixLoginHandler{
 		db:             db,
 		serverName:     "example.org",
 		macaroonSecret: "test_secret",
 	}
 
-	_, err := h.loginPassword(testUserID, "bad_password")
+	_, err := h.loginPassword(userID, "bad_password")
 	if err == nil {
 		t.Fatal("Want error got nil")
 	}

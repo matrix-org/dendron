@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/matrix-org/dendron/proxy"
@@ -89,6 +90,11 @@ func (h *MatrixLoginHandler) ServeHTTP(w http.ResponseWriter, req *http.Request)
 }
 
 func (h *MatrixLoginHandler) loginPassword(userID string, password string) (*matrixLoginResponse, *proxy.HTTPError) {
+
+	if !strings.HasPrefix(userID, "@") {
+		userID = "@" + userID + ":" + h.serverName
+	}
+
 	hash, err := h.db.passwordHash(userID)
 	if err != nil {
 		return nil, &proxy.HTTPError{err, 403, "M_FORBIDDEN", "Forbidden"}
