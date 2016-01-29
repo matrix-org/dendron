@@ -22,6 +22,8 @@ type matrixLoginRequest struct {
 	Type     string `json:"type"`
 	Password string `json:"password"`
 	UserID   string `json:"user"`
+	Medium   string `json:"medium"`
+	Address  string `json:"address"`
 }
 
 type matrixLoginResponse struct {
@@ -75,6 +77,13 @@ func (h *MatrixLoginHandler) ServeHTTP(w http.ResponseWriter, req *http.Request)
 
 	switch login.Type {
 	case "m.login.password":
+		if login.Medium != "" && login.Address != "" {
+			login.UserID, err = h.db.matrixIDFor3PID(login.Medium, login.Address)
+			if err != nil {
+				proxy.LogAndReplyError(w, &proxy.HTTPError{err, 403, "M_FORBIDDEN", "Forbidden"})
+			}
+		}
+
 		response, err := h.loginPassword(login.UserID, login.Password)
 		if err != nil {
 			proxy.LogAndReplyError(w, err)
