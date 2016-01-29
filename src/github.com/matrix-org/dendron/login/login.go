@@ -81,6 +81,7 @@ func (h *MatrixLoginHandler) ServeHTTP(w http.ResponseWriter, req *http.Request)
 			login.UserID, err = h.db.matrixIDFor3PID(login.Medium, login.Address)
 			if err != nil {
 				proxy.LogAndReplyError(w, &proxy.HTTPError{err, 403, "M_FORBIDDEN", "Forbidden"})
+				return
 			}
 		}
 
