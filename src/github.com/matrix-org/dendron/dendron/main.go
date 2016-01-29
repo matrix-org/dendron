@@ -6,15 +6,16 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"login"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
-	"proxy"
 	"time"
+
+	"github.com/matrix-org/dendron/login"
+	"github.com/matrix-org/dendron/proxy"
 
 	"github.com/prometheus/client_golang/prometheus"
 

@@ -14,7 +14,7 @@ go get github.com/tebeka/go2xunit
 gb build
 
 # TODO: Whatever comes out of https://github.com/constabulary/gb/issues/559
-GOPATH=$(pwd):$(pwd)/vendor go test $(cd src ; find * -type d) -v | go2xunit > results.xml
+GOPATH=$(pwd):$(pwd)/vendor go test $(gb list) -v | go2xunit > results.xml
 golint src/... >golint.txt
 go tool vet src/ 2>govet.txt
 
