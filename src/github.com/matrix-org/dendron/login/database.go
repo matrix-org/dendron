@@ -3,6 +3,7 @@ package login
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"sync/atomic"
 )
 
@@ -24,6 +25,8 @@ func makeSQLDatabase(db *sql.DB) (database, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	log.Printf("Intitial minimum token ids are %d and %d")
 
 	return &sqlDatabase{db, accessTokenID, refreshTokenID}, nil
 }
@@ -83,7 +86,7 @@ func getNextIDs(db *sql.DB) (accessTokenID, refreshTokenID int64, err error) {
 	}
 
 	if id.Valid {
-		accessTokenID = id.Int64
+		accessTokenID = -id.Int64
 	}
 
 	row = db.QueryRow("SELECT min(id) FROM refresh_tokens")
@@ -92,7 +95,7 @@ func getNextIDs(db *sql.DB) (accessTokenID, refreshTokenID int64, err error) {
 	}
 
 	if id.Valid {
-		refreshTokenID = id.Int64
+		refreshTokenID = -id.Int64
 	}
 
 	return
