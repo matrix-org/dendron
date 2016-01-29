@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/matrix-org/dendron/proxy"
@@ -90,7 +91,7 @@ func (h *MatrixLoginHandler) ServeHTTP(w http.ResponseWriter, req *http.Request)
 
 func (h *MatrixLoginHandler) loginPassword(userID string, password string) (*matrixLoginResponse, *proxy.HTTPError) {
 
-	if userID[0] != '@' {
+	if !strings.HasPrefix(userID, "@") {
 		userID = "@" + userID + ":" + h.serverName
 	}
 
