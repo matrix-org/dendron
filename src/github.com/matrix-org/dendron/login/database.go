@@ -9,7 +9,7 @@ import (
 type database interface {
 	passwordHash(userID string) (string, error)
 	insertTokens(userID, accessToken, refreshToken string) error
-	matrixIDFor3PID(medium string, address string) (string, error)
+	matrixIDFor3PID(medium, address string) (string, error)
 }
 
 // An sqlDatabase for doing the SQL queries needed to login a user
@@ -67,7 +67,7 @@ func (s *sqlDatabase) insertTokens(userID, accessToken, refreshToken string) err
 	return nil
 }
 
-func (s *sqlDatabase) matrixIDFor3PID(medium string, address string) (string, error) {
+func (s *sqlDatabase) matrixIDFor3PID(medium, address string) (string, error) {
 	row := s.db.QueryRow("SELECT user_id FROM user_threepids WHERE medium = $1 AND address = $2", medium, address)
 	var userID string
 	err := row.Scan(&userID)
