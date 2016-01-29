@@ -9,5 +9,5 @@ synapse/
 sytest/
 
 results.xml
-lint.txt
-vet.txt
+golint.txt
+govet.txt
