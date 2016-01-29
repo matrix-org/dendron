@@ -16,6 +16,7 @@ import (
 
 	"github.com/matrix-org/dendron/login"
 	"github.com/matrix-org/dendron/proxy"
+	"github.com/matrix-org/dendron/versions"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -102,13 +103,20 @@ func main() {
 		panic(err)
 	}
 
+	versionsHandler, err := versions.NewHandler(&synapseProxy, time.Hour)
+	if err != nil {
+		panic(err)
+	}
+
 	loginFunc := prometheus.InstrumentHandler("login", loginHandler)
 	proxyFunc := prometheus.InstrumentHandler("proxy", &synapseProxy)
+	versionsFunc := prometheus.InstrumentHandler("versions", versionsHandler)
 
 	mux := http.NewServeMux()
 	mux.Handle("/", proxyFunc)
 	mux.Handle("/_matrix/client/api/v1/login", loginFunc)
 	mux.Handle("/_matrix/client/r0/login", loginFunc)
+	mux.Handle("/_matrix/client/versions", versionsFunc)
 	mux.HandleFunc("/_dendron/test", func(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintln(w, "test")
 	})
