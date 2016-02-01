@@ -26,7 +26,7 @@ func makeSQLDatabase(db *sql.DB) (database, error) {
 		return nil, err
 	}
 
-	log.Printf("Intitial minimum token ids are %d and %d")
+	log.Printf("Intitial minimum token ids are %d and %d", accessTokenID, refreshTokenID)
 
 	return &sqlDatabase{db, accessTokenID, refreshTokenID}, nil
 }

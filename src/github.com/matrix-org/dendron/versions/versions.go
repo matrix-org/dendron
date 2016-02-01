@@ -14,8 +14,8 @@ import (
 
 // NewHandler creates an http.Handler which serves up the client-server API versions currently served by the delegated Synapse.
 // It caches this response for updateInterval, and will serve stale cache entries if it cannot get a new value from the Synapse.
-func NewHandler(p *proxy.SynapseProxy, updateInterval time.Duration) (*handler, error) {
-	h := &handler{p: p}
+func NewHandler(p *proxy.SynapseProxy, updateInterval time.Duration) (*Handler, error) {
+	h := &Handler{p: p}
 	if err := h.update(); err != nil {
 		return nil, fmt.Errorf("error getting initial version: %v", err)
 	}
@@ -32,18 +32,20 @@ func NewHandler(p *proxy.SynapseProxy, updateInterval time.Duration) (*handler, 
 	return h, nil
 }
 
-type handler struct {
+// Handler handles requests for /_matrix/client/versions by caching the
+// response from synapse
+type Handler struct {
 	p *proxy.SynapseProxy
 
 	resp atomic.Value // Always contains a valid []byte
 }
 
-func (h *handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (h *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	proxy.SetHeaders(w)
 	w.Write(h.resp.Load().([]byte))
 }
 
-func (h *handler) update() error {
+func (h *Handler) update() error {
 	resp, err := h.p.Client.Get(h.p.URL.String() + "/_matrix/client/versions")
 	if err != nil {
 		log.Printf("Error updating /version: %v", err)
