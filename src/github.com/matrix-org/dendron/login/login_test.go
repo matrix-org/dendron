@@ -11,22 +11,37 @@ const (
 )
 
 func TestGoodPassword(t *testing.T) {
-	testGoodPassword(t, testUserID)
+	db := mockDatabase{
+		passwords: map[string]passwordRow{
+			testUserID: {testUserID, testPasswordBcrypt},
+		},
+	}
+	testGoodPassword(t, &db, testUserID)
 }
 
 func TestLocalPartOnly(t *testing.T) {
-	testGoodPassword(t, "test")
+	db := mockDatabase{
+		passwords: map[string]passwordRow{
+			testUserID: {testUserID, testPasswordBcrypt},
+		},
+	}
+	testGoodPassword(t, &db, "test")
 }
 
-func testGoodPassword(t *testing.T, userID string) {
+func TestCanonicalisation(t *testing.T) {
 	db := mockDatabase{
-		passwords: map[string]string{
-			testUserID: testPasswordBcrypt,
+		passwords: map[string]passwordRow{
+			"@TEST:example.org": {testUserID, testPasswordBcrypt},
 		},
 	}
 
+	testGoodPassword(t, &db, "@TEST:example.org")
+}
+
+func testGoodPassword(t *testing.T, db *mockDatabase, userID string) {
+
 	h := &MatrixLoginHandler{
-		db:             &db,
+		db:             db,
 		serverName:     "example.org",
 		macaroonSecret: "test_secret",
 	}
@@ -67,8 +82,8 @@ func testGoodPassword(t *testing.T, userID string) {
 
 func TestBadPassword(t *testing.T) {
 	db := mockDatabase{
-		passwords: map[string]string{
-			testUserID: testPasswordBcrypt,
+		passwords: map[string]passwordRow{
+			testUserID: {testUserID, testPasswordBcrypt},
 		},
 	}
 	testExpectLoginFailure(t, &db, testUserID)
@@ -105,6 +120,11 @@ func testExpectLoginFailure(t *testing.T, db *mockDatabase, userID string) {
 	}
 }
 
+type passwordRow struct {
+	userID string
+	hash   string
+}
+
 type tokenRow struct {
 	token  string
 	userID string
@@ -117,16 +137,16 @@ type threePID struct {
 
 type mockDatabase struct {
 	threePIDs     map[threePID]string
-	passwords     map[string]string
+	passwords     map[string]passwordRow
 	accessTokens  []tokenRow
 	refreshTokens []tokenRow
 }
 
-func (m *mockDatabase) passwordHash(userID string) (string, error) {
+func (m *mockDatabase) passwordHash(userID string) (string, string, error) {
 	if val, ok := m.passwords[userID]; ok {
-		return val, nil
+		return val.userID, val.hash, nil
 	}
-	return "", fmt.Errorf("no such userID: %s", userID)
+	return "", "", fmt.Errorf("no such userID: %s", userID)
 }
 
 func (m *mockDatabase) insertTokens(userID, accessToken, refreshToken string) error {

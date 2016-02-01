@@ -105,7 +105,7 @@ func (h *MatrixLoginHandler) loginPassword(userID string, password string) (*mat
 		userID = "@" + userID + ":" + h.serverName
 	}
 
-	hash, err := h.db.passwordHash(userID)
+	canonicalID, hash, err := h.db.passwordHash(userID)
 	if err != nil {
 		return nil, &proxy.HTTPError{err, 403, "M_FORBIDDEN", "Forbidden"}
 	}
@@ -119,7 +119,7 @@ func (h *MatrixLoginHandler) loginPassword(userID string, password string) (*mat
 		return nil, &proxy.HTTPError{err, 500, "M_UNKNOWN", "Error generating login"}
 	}
 
-	response, err := h.makeLoginResponse(userID, expires, nonce)
+	response, err := h.makeLoginResponse(canonicalID, expires, nonce)
 	if err != nil {
 		return nil, &proxy.HTTPError{err, 500, "M_UNKNOWN", "Error generating login"}
 	}

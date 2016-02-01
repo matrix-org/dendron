@@ -8,7 +8,7 @@ import (
 )
 
 type database interface {
-	passwordHash(userID string) (string, error)
+	passwordHash(userID string) (string, string, error)
 	insertTokens(userID, accessToken, refreshToken string) error
 	matrixIDFor3PID(medium, address string) (string, error)
 }
@@ -31,17 +31,23 @@ func makeSQLDatabase(db *sql.DB) (database, error) {
 	return &sqlDatabase{db, accessTokenID, refreshTokenID}, nil
 }
 
-func (s *sqlDatabase) passwordHash(userID string) (string, error) {
-	row := s.db.QueryRow("SELECT password_hash FROM users WHERE lower(name) = lower($1)", userID)
+func (s *sqlDatabase) passwordHash(userID string) (string, string, error) {
+	row := s.db.QueryRow("SELECT name, password_hash FROM users WHERE lower(name) = lower($1)", userID)
+	var canonicalID sql.NullString
 	var hash sql.NullString
-	if err := row.Scan(&hash); err != nil {
-		return "", err
-	}
-	if hash.Valid {
-		return hash.String, nil
+	if err := row.Scan(&canonicalID, &hash); err != nil {
+		return "", "", err
 	}
 
-	return "", fmt.Errorf("password hash for %q was null", userID)
+	if !canonicalID.Valid {
+		return "", "", fmt.Errorf("canonicalID for %q was null", userID)
+	}
+
+	if !hash.Valid {
+		return "", "", fmt.Errorf("password hash for %q was null", userID)
+	}
+
+	return canonicalID.String, hash.String, nil
 }
 
 func (s *sqlDatabase) insertTokens(userID, accessToken, refreshToken string) error {
