@@ -8,7 +8,7 @@ import (
 )
 
 type database interface {
-	passwordHash(userID string) (string, string, error)
+	canonicalUserIDAndPasswordHash(userID string) (string, string, error)
 	insertTokens(userID, accessToken, refreshToken string) error
 	matrixIDFor3PID(medium, address string) (string, error)
 }
@@ -31,7 +31,7 @@ func makeSQLDatabase(db *sql.DB) (database, error) {
 	return &sqlDatabase{db, accessTokenID, refreshTokenID}, nil
 }
 
-func (s *sqlDatabase) passwordHash(userID string) (string, string, error) {
+func (s *sqlDatabase) canonicalUserIDAndPasswordHash(userID string) (string, string, error) {
 	row := s.db.QueryRow("SELECT name, password_hash FROM users WHERE lower(name) = lower($1)", userID)
 	var canonicalID sql.NullString
 	var hash sql.NullString
