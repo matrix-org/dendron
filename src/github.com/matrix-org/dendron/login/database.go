@@ -55,8 +55,8 @@ func (s *sqlDatabase) insertTokens(userID, accessToken, refreshToken string) err
 	// Assumes that NextAccessTokenID and NextRefreshTokenID have been set to the
 	// minimum value in the database and that only one instance of this login
 	// handler is running against a given database
-	accessTokenID := -atomic.AddInt64(&s.nextAccessTokenID, 1)
-	refreshTokenID := -atomic.AddInt64(&s.nextRefreshTokenID, 1)
+	accessTokenID := atomic.AddInt64(&s.nextAccessTokenID, -1)
+	refreshTokenID := atomic.AddInt64(&s.nextRefreshTokenID, -1)
 
 	txn, err := s.db.Begin()
 	if err != nil {
@@ -92,7 +92,7 @@ func getNextIDs(db *sql.DB) (accessTokenID, refreshTokenID int64, err error) {
 	}
 
 	if id.Valid {
-		accessTokenID = -id.Int64
+		accessTokenID = id.Int64
 	}
 
 	row = db.QueryRow("SELECT min(id) FROM refresh_tokens")
@@ -101,7 +101,7 @@ func getNextIDs(db *sql.DB) (accessTokenID, refreshTokenID int64, err error) {
 	}
 
 	if id.Valid {
-		refreshTokenID = -id.Int64
+		refreshTokenID = id.Int64
 	}
 
 	return
