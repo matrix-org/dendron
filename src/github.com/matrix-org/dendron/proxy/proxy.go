@@ -86,7 +86,7 @@ func (p *SynapseProxy) ProxyHTTP(w http.ResponseWriter, method string, url *url.
 
 	written, err := io.Copy(w, resp.Body)
 	if err != nil {
-		log.Printf("Error writing response (%d bytes written): %v", written, err)
+		log.Printf("Error writing response (%d bytes written out of %d): %v", written, resp.ContentLength, err)
 	}
 }
 
