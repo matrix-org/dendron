@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 )
 
 // An HTTPError is the information needed to make an error response for a
@@ -75,11 +76,18 @@ func (p *SynapseProxy) ProxyHTTP(w http.ResponseWriter, method string, url *url.
 
 	defer resp.Body.Close()
 
+	if resp.ContentLength != -1 {
+		w.Header().Set("Content-Length", strconv.FormatInt(resp.ContentLength, 10))
+	}
 	for key, value := range resp.Header {
 		w.Header()[key] = value
 	}
 	w.WriteHeader(resp.StatusCode)
-	io.Copy(w, resp.Body)
+
+	written, err := io.Copy(w, resp.Body)
+	if err != nil {
+		log.Printf("Error writing response (%d bytes written out of %d): %v", written, resp.ContentLength, err)
+	}
 }
 
 func (p *SynapseProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
