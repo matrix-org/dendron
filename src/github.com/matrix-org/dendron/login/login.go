@@ -105,7 +105,7 @@ func (h *MatrixLoginHandler) loginPassword(userID string, password string) (*mat
 		userID = "@" + userID + ":" + h.serverName
 	}
 
-	canonicalID, hash, err := h.db.passwordHash(userID)
+	canonicalID, hash, err := h.db.canonicalUserIDAndPasswordHash(userID)
 	if err != nil {
 		return nil, &proxy.HTTPError{err, 403, "M_FORBIDDEN", "Forbidden"}
 	}

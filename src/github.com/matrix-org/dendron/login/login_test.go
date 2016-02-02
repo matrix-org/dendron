@@ -142,7 +142,7 @@ type mockDatabase struct {
 	refreshTokens []tokenRow
 }
 
-func (m *mockDatabase) passwordHash(userID string) (string, string, error) {
+func (m *mockDatabase) canonicalUserIDAndPasswordHash(userID string) (string, string, error) {
 	if val, ok := m.passwords[userID]; ok {
 		return val.userID, val.hash, nil
 	}
