@@ -3,10 +3,11 @@ package proxy
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 // An HTTPError is the information needed to make an error response for a

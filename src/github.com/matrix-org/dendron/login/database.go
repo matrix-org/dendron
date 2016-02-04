@@ -3,8 +3,9 @@ package login
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"sync/atomic"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 type database interface {

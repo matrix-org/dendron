@@ -3,11 +3,12 @@ package versions
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"sync/atomic"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/matrix-org/dendron/proxy"
 )
