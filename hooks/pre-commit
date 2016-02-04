@@ -1,0 +1,5 @@
+#!/bin/bash -eu
+
+gb test
+golint src/...
+go tool vet src/
