@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,6 +12,8 @@ import (
 	"os/exec"
 	"os/signal"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/matrix-org/dendron/login"
 	"github.com/matrix-org/dendron/proxy"
