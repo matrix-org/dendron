@@ -27,7 +27,10 @@ func makeSQLDatabase(db *sql.DB) (database, error) {
 		return nil, err
 	}
 
-	log.Printf("Intitial minimum token ids are %d and %d", accessTokenID, refreshTokenID)
+	log.WithFields(log.Fields{
+		"accessTokenID":  accessTokenID,
+		"refreshTokenID": refreshTokenID,
+	}).Print("Loaded current minimum token IDs from database")
 
 	return &sqlDatabase{db, accessTokenID, refreshTokenID}, nil
 }

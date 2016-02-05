@@ -38,19 +38,21 @@ var (
 	listenKeyFile  = flag.String("key-file", "", "TLS Private Key. The private key for the certificate. This must be set if listening for HTTPS requests")
 )
 
-func handleSignal(channel chan os.Signal, synapse *os.Process) {
+func handleSignal(channel chan os.Signal, synapse *os.Process, synapseLog *log.Entry) {
 	select {
 	case sig := <-channel:
-		log.Print("Got signal: ", sig)
+		log.WithField("signal", sig).Print("Got signal")
+		synapseLog.Print("Killing synapse")
 		synapse.Signal(os.Interrupt)
 		os.Exit(1)
 	}
 }
 
-func waitForSynapse(sp *proxy.SynapseProxy) error {
-	log.Printf("Connecting to synapse at %s...", sp.URL.String())
+func waitForSynapse(sp *proxy.SynapseProxy, synapseLog *log.Entry) error {
+	synapseLog.Print("Connecting to synapse")
 	period := 50 * time.Millisecond
-	deadline := time.Now().Add(20 * time.Second)
+	timeout := 20 * time.Second
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if resp, err := sp.Client.Get(sp.URL.String()); err == nil {
 			resp.Body.Close()
@@ -58,7 +60,8 @@ func waitForSynapse(sp *proxy.SynapseProxy) error {
 		}
 		time.Sleep(period)
 	}
-	return fmt.Errorf("failed to start synapse")
+
+	return fmt.Errorf("timeout waiting for synapse to start")
 }
 
 func main() {
@@ -74,24 +77,26 @@ func main() {
 
 	var synapse *exec.Cmd
 
+	var synapseLog = log.WithField("synapse", synapseProxy.URL.String())
+
 	if *startSynapse {
 		synapse = exec.Command(*synapsePython, "-m", "synapse.app.homeserver", "-c", *synapseConfig)
 		synapse.Stderr = os.Stderr
-		log.Print("Dendron: Starting synapse...")
+		synapseLog.Print("Starting synapse")
 
 		synapse.Start()
 
 		channel := make(chan os.Signal, 1)
 		signal.Notify(channel, os.Interrupt)
-		go handleSignal(channel, synapse.Process)
+		go handleSignal(channel, synapse.Process, synapseLog)
 
-		if err := waitForSynapse(&synapseProxy); err != nil {
-			panic(err)
+		if err := waitForSynapse(&synapseProxy, synapseLog); err != nil {
+			synapseLog.Panic(err)
 		}
 
-		log.Print("Dendron: Synapse started")
+		synapseLog.Print("Synapse started")
 	} else {
-		log.Printf("Dendron: Using existing synapse at %v", synapseProxy.URL.String())
+		synapseLog.Print("Using existing synapse")
 	}
 
 	db, err := sql.Open("postgres", *synapseDB)

@@ -37,7 +37,12 @@ func SetHeaders(w http.ResponseWriter) {
 
 // LogAndReplyError logs the httpError and writes a JSON formatted error to w.
 func LogAndReplyError(w http.ResponseWriter, httpError *HTTPError) {
-	log.Printf("%s: %v", httpError.Message, httpError.Err)
+	log.WithFields(log.Fields{
+		"error":      httpError.Err,
+		"errMessage": httpError.Message,
+		"statusCode": httpError.StatusCode,
+		"errCode":    httpError.ErrCode,
+	}).Print("Responding with error")
 	SetHeaders(w)
 	w.WriteHeader(httpError.StatusCode)
 	fmt.Fprintf(w, `{"errcode":"%s","error":"%s"}`, httpError.ErrCode, httpError.Message)
@@ -87,7 +92,11 @@ func (p *SynapseProxy) ProxyHTTP(w http.ResponseWriter, method string, url *url.
 
 	written, err := io.Copy(w, resp.Body)
 	if err != nil {
-		log.Printf("Error writing response (%d bytes written out of %d): %v", written, resp.ContentLength, err)
+		log.WithFields(log.Fields{
+			"contentLength": resp.ContentLength,
+			"written":       written,
+			"error":         err,
+		}).Print("Error writing response")
 	}
 }
 

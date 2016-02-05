@@ -47,17 +47,24 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *Handler) update() error {
-	resp, err := h.p.Client.Get(h.p.URL.String() + "/_matrix/client/versions")
+	url := h.p.URL.String() + "/_matrix/client/versions"
+	resp, err := h.p.Client.Get(url)
 	if err != nil {
-		log.Printf("Error updating /version: %v", err)
+		log.WithFields(log.Fields{
+			"versionUrl": url,
+			"error":      err,
+		}).Error("Error updating /version")
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		respBytes, _ := httputil.DumpResponse(resp, true)
-		err := fmt.Errorf("error updating /version: status code: %v, response: %v", resp.StatusCode, string(respBytes))
-		log.Print(err)
-		return err
+		log.WithFields(log.Fields{
+			"versionUrl":   url,
+			"statusCode":   resp.StatusCode,
+			"responseBody": string(respBytes),
+		}).Error("Non-200 response updating /version")
+		return fmt.Errorf("error updating /version: status code: %v, response: %v", resp.StatusCode, string(respBytes))
 	}
 	bytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
