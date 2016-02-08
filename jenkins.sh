@@ -11,6 +11,7 @@ go get github.com/constabulary/gb/...
 go get github.com/golang/lint/golint
 go get github.com/tebeka/go2xunit
 
+gb generate
 gb build
 
 # TODO: Whatever comes out of https://github.com/constabulary/gb/issues/559

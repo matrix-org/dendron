@@ -1,5 +1,6 @@
 #!/bin/bash -eu
 
+gb generate
 gb test
 golint src/...
 go tool vet src/

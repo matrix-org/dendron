@@ -22,9 +22,21 @@
 			"path": "/proto"
 		},
 		{
+			"importpath": "github.com/hashicorp/golang-lru",
+			"repository": "https://github.com/hashicorp/golang-lru",
+			"revision": "a0d98a5f288019575c6d1f4bb1573fef2d1fcdc4",
+			"branch": "master"
+		},
+		{
 			"importpath": "github.com/lib/pq",
 			"repository": "https://github.com/lib/pq",
 			"revision": "8ad2b298cadd691a77015666a5372eae5dbfac8f",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/matrix-org/matrix-doc",
+			"repository": "https://github.com/matrix-org/matrix-doc",
+			"revision": "2e1c2c23e4c34b88262b03c15993551718e62859",
 			"branch": "master"
 		},
 		{
@@ -114,6 +126,12 @@
 			"importpath": "gopkg.in/airbrake/gobrake.v2",
 			"repository": "https://gopkg.in/airbrake/gobrake.v2",
 			"revision": "c9d51adc624b5cc4c1bf8de730a09af4878ffe2d",
+			"branch": "master"
+		},
+		{
+			"importpath": "gopkg.in/fsnotify.v1",
+			"repository": "https://gopkg.in/fsnotify.v1",
+			"revision": "8611c35ab31c1c28aa903d33cf8b6e44a399b09e",
 			"branch": "master"
 		},
 		{
