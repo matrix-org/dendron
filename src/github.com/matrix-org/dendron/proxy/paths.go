@@ -145,5 +145,4 @@ func init() {
 	regexpPaths = append(regexpPaths, regexpAndString{regexp.MustCompile(`^/_matrix/media/api/v1/thumbnail/[^/]*/[^/]*$`), `/_matrix/media/api/v1/thumbnail/_/_`})
 	regexpPaths = append(regexpPaths, regexpAndString{regexp.MustCompile(`^/_matrix/media/r0/download/[^/]*/[^/]*$`), `/_matrix/media/r0/download/_/_`})
 	regexpPaths = append(regexpPaths, regexpAndString{regexp.MustCompile(`^/_matrix/media/r0/thumbnail/[^/]*/[^/]*$`), `/_matrix/media/r0/thumbnail/_/_`})
-
 }
