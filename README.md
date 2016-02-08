@@ -17,6 +17,7 @@ for setting up a dev install of Synapse.
 
 To build Dendron itself check out this repository and build it using [gb](https://getgb.io):
 
+    gb generate
     gb build
 
 
