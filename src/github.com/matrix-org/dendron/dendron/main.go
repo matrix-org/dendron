@@ -67,7 +67,30 @@ func waitForSynapse(sp *proxy.SynapseProxy, synapseLog *log.Entry) error {
 func main() {
 	flag.Parse()
 
-	var synapseProxy proxy.SynapseProxy
+	proxyMetrics := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: "synapse_proxy_request_durations_microseconds",
+			Help: "Histogram of microsecond durations of requests to underlying synapse for proxied requests",
+
+			// Manually curated list of expected request timings.
+			// Ranges from <1ms to <2 minutes, and then an auto-generated >2 minutes bucket.
+			Buckets: []float64{
+				// <1s
+				1000, 10000, 25000, 50000, 75000, 100000,
+				// <10s
+				1000000, 1250000, 1500000, 1750000, 2000000, 3000000, 4000000, 5000000,
+				// <60s
+				10000000, 20000000, 30000000, 45000000,
+				// >= 60s
+				60000000, 120000000,
+			},
+		},
+		[]string{"path", "method"},
+	)
+	prometheus.MustRegister(proxyMetrics)
+	synapseProxy := &proxy.SynapseProxy{
+		Metrics: proxyMetrics,
+	}
 
 	if u, err := url.Parse(*synapseURL); err != nil {
 		panic(err)
@@ -90,7 +113,7 @@ func main() {
 		signal.Notify(channel, os.Interrupt)
 		go handleSignal(channel, synapse.Process, synapseLog)
 
-		if err := waitForSynapse(&synapseProxy, synapseLog); err != nil {
+		if err := waitForSynapse(synapseProxy, synapseLog); err != nil {
 			synapseLog.Panic(err)
 		}
 
@@ -104,18 +127,18 @@ func main() {
 		panic(err)
 	}
 
-	loginHandler, err := login.NewHandler(db, &synapseProxy, *serverName, *macaroonSecret)
+	loginHandler, err := login.NewHandler(db, synapseProxy, *serverName, *macaroonSecret)
 	if err != nil {
 		panic(err)
 	}
 
-	versionsHandler, err := versions.NewHandler(&synapseProxy, time.Hour)
+	versionsHandler, err := versions.NewHandler(synapseProxy, time.Hour)
 	if err != nil {
 		panic(err)
 	}
 
 	loginFunc := prometheus.InstrumentHandler("login", loginHandler)
-	proxyFunc := prometheus.InstrumentHandler("proxy", &synapseProxy)
+	proxyFunc := prometheus.InstrumentHandler("proxy", synapseProxy)
 	versionsFunc := prometheus.InstrumentHandler("versions", versionsHandler)
 
 	mux := http.NewServeMux()

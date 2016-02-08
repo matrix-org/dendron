@@ -17,6 +17,7 @@ gb build
 GOPATH=$(pwd):$(pwd)/vendor go test $(gb list) -v | go2xunit > results.xml
 golint src/... >golint.txt
 go tool vet src/ 2>govet.txt
+./scripts/check_generated_proxy_paths.sh
 
 
 
