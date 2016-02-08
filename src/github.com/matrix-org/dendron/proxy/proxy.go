@@ -6,8 +6,11 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // An HTTPError is the information needed to make an error response for a
@@ -54,6 +57,8 @@ type SynapseProxy struct {
 	URL url.URL
 	// The Client used to send proxied requests.
 	Client http.Client
+	// Stores metrics of outgoing proxied requests.
+	Metrics *prometheus.HistogramVec
 }
 
 // ProxyHTTP sends an HTTP request built from the method, url, body, content
@@ -74,7 +79,7 @@ func (p *SynapseProxy) ProxyHTTP(w http.ResponseWriter, method string, url *url.
 		req.Header[key] = value
 	}
 
-	resp, err := p.Client.Do(req)
+	resp, err := p.measure(req)
 	if err != nil {
 		LogAndReplyError(w, &HTTPError{err, 500, "M_UNKNOWN", "Error proxying request"})
 		return
@@ -104,4 +109,26 @@ func (p *SynapseProxy) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 
 	p.ProxyHTTP(w, req.Method, req.URL, req.Body, req.ContentLength, req.Header)
+}
+
+func (p *SynapseProxy) measure(req *http.Request) (*http.Response, error) {
+	start := time.Now()
+	resp, httpErr := p.Client.Do(req)
+
+	if p.Metrics != nil {
+		sanitizedPath := endpointFor(req.URL.Path)
+		if sanitizedPath == unknownPath {
+			log.WithField("path", req.URL.Path).Warn("Proxying unknown path")
+		}
+		metric, err := p.Metrics.GetMetricWithLabelValues(sanitizedPath, req.Method)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"path":   req.URL.Path,
+				"method": req.Method,
+			}).Print("Error getting proxy metric")
+		} else {
+			metric.Observe(float64(time.Now().Sub(start).Nanoseconds() / 1000))
+		}
+	}
+	return resp, httpErr
 }
