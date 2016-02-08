@@ -1,6 +1,6 @@
 #!/bin/bash -eu
 
-cd "$(dirname "$(dirname "$(realpath "$0")")")"
+cd "$(dirname "$0")"/..
 
 rm -rf matrix-doc
 git clone https://github.com/matrix-org/matrix-doc.git
