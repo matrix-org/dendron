@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"syscall"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -64,8 +65,23 @@ func waitForSynapse(sp *proxy.SynapseProxy, synapseLog *log.Entry) error {
 	return fmt.Errorf("timeout waiting for synapse to start")
 }
 
+func setMaxOpenFiles() (uint64, error) {
+	var limit syscall.Rlimit
+	if err := syscall.Getrlimit(syscall.RLIMIT_NOFILE, &limit); err != nil {
+		return 0, err
+	}
+	limit.Cur = limit.Max
+	return limit.Max, syscall.Setrlimit(syscall.RLIMIT_NOFILE, &limit)
+}
+
 func main() {
 	flag.Parse()
+
+	if noFiles, err := setMaxOpenFiles(); err != nil {
+		panic(err)
+	} else {
+		log.WithField("files", noFiles).Printf("Set maximum number of open files")
+	}
 
 	proxyMetrics := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
