@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
+	"net/url"
 	"sync/atomic"
 	"time"
 
@@ -15,8 +16,8 @@ import (
 
 // NewHandler creates an http.Handler which serves up the client-server API versions currently served by the delegated Synapse.
 // It caches this response for updateInterval, and will serve stale cache entries if it cannot get a new value from the Synapse.
-func NewHandler(p *proxy.SynapseProxy, updateInterval time.Duration) (*Handler, error) {
-	h := &Handler{p: p}
+func NewHandler(synapseURL *url.URL, updateInterval time.Duration) (*Handler, error) {
+	h := &Handler{synapseURL: synapseURL}
 	if err := h.update(); err != nil {
 		return nil, fmt.Errorf("error getting initial version: %v", err)
 	}
@@ -36,7 +37,7 @@ func NewHandler(p *proxy.SynapseProxy, updateInterval time.Duration) (*Handler, 
 // Handler handles requests for /_matrix/client/versions by caching the
 // response from synapse
 type Handler struct {
-	p *proxy.SynapseProxy
+	synapseURL *url.URL
 
 	resp atomic.Value // Always contains a valid []byte
 }
@@ -47,8 +48,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func (h *Handler) update() error {
-	url := h.p.URL.String() + "/_matrix/client/versions"
-	resp, err := h.p.Client.Get(url)
+	url := h.synapseURL.String() + "/_matrix/client/versions"
+	resp, err := http.Get(url)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"versionUrl": url,

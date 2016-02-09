@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"os/exec"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	stdlog "log"
 
 	"github.com/matrix-org/dendron/login"
 	"github.com/matrix-org/dendron/proxy"
@@ -29,7 +31,7 @@ var (
 	startSynapse   = flag.Bool("start-synapse", true, "Start a synapse process, otherwise connect to an existing synapse")
 	synapseConfig  = flag.String("synapse-config", "homeserver.yaml", "Path to synapse's config")
 	synapsePython  = flag.String("synapse-python", "python", "A python interpreter to use for synapse. This should be the python binary installed inside synapse's virtualenv. The interpreter will be looked up on the $PATH")
-	synapseURL     = flag.String("synapse-url", "http://localhost:18448", "The HTTP URL that synapse is configured to listen on.")
+	synapseURLStr  = flag.String("synapse-url", "http://localhost:18448", "The HTTP URL that synapse is configured to listen on.")
 	synapseDB      = flag.String("synapse-postgres", "", "Database config for the postgresql as per https://godoc.org/github.com/lib/pq#hdr-Connection_String_Parameters. This must point to the same database that synapse is configured to use")
 	serverName     = flag.String("server-name", "", "Matrix server name. This must match the server_name configured for synapse.")
 	macaroonSecret = flag.String("macaroon-secret", "", "Secret key for macaroons. This must match the macaroon_secret_key configured for synapse.")
@@ -49,13 +51,13 @@ func handleSignal(channel chan os.Signal, synapse *os.Process, synapseLog *log.E
 	}
 }
 
-func waitForSynapse(sp *proxy.SynapseProxy, synapseLog *log.Entry) error {
+func waitForSynapse(synapseURL *url.URL, synapseLog *log.Entry) error {
 	synapseLog.Print("Connecting to synapse")
 	period := 50 * time.Millisecond
 	timeout := 20 * time.Second
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if resp, err := sp.Client.Get(sp.URL.String()); err == nil {
+		if resp, err := http.Get(synapseURL.String()); err == nil {
 			resp.Body.Close()
 			return nil
 		}
@@ -104,19 +106,15 @@ func main() {
 		[]string{"path", "method"},
 	)
 	prometheus.MustRegister(proxyMetrics)
-	synapseProxy := &proxy.SynapseProxy{
-		Metrics: proxyMetrics,
-	}
 
-	if u, err := url.Parse(*synapseURL); err != nil {
+	synapseURL, err := url.Parse(*synapseURLStr)
+	if err != nil {
 		panic(err)
-	} else {
-		synapseProxy.URL = *u
 	}
 
 	var synapse *exec.Cmd
 
-	var synapseLog = log.WithField("synapse", synapseProxy.URL.String())
+	var synapseLog = log.WithField("synapse", synapseURL.String())
 
 	if *startSynapse {
 		synapse = exec.Command(*synapsePython, "-m", "synapse.app.homeserver", "-c", *synapseConfig)
@@ -129,7 +127,7 @@ func main() {
 		signal.Notify(channel, os.Interrupt)
 		go handleSignal(channel, synapse.Process, synapseLog)
 
-		if err := waitForSynapse(synapseProxy, synapseLog); err != nil {
+		if err := waitForSynapse(synapseURL, synapseLog); err != nil {
 			synapseLog.Panic(err)
 		}
 
@@ -143,18 +141,20 @@ func main() {
 		panic(err)
 	}
 
-	loginHandler, err := login.NewHandler(db, synapseProxy, *serverName, *macaroonSecret)
+	reverseProxy := proxy.MeasureByPath(proxyMetrics, httputil.NewSingleHostReverseProxy(synapseURL).ServeHTTP)
+
+	loginHandler, err := login.NewHandler(db, reverseProxy, *serverName, *macaroonSecret)
 	if err != nil {
 		panic(err)
 	}
 
-	versionsHandler, err := versions.NewHandler(synapseProxy, time.Hour)
+	versionsHandler, err := versions.NewHandler(synapseURL, time.Hour)
 	if err != nil {
 		panic(err)
 	}
 
 	loginFunc := prometheus.InstrumentHandler("login", loginHandler)
-	proxyFunc := prometheus.InstrumentHandler("proxy", synapseProxy)
+	proxyFunc := prometheus.InstrumentHandler("proxy", reverseProxy)
 	versionsFunc := prometheus.InstrumentHandler("versions", versionsHandler)
 
 	mux := http.NewServeMux()
@@ -167,12 +167,15 @@ func main() {
 	})
 	mux.Handle("/_dendron/metrics", prometheus.Handler())
 
+	logWriter := log.StandardLogger().Writer()
+	defer logWriter.Close()
 	s := &http.Server{
 		Addr:           *listenAddr,
 		Handler:        mux,
 		ReadTimeout:    5 * time.Minute,
 		WriteTimeout:   5 * time.Minute,
 		MaxHeaderBytes: 1 << 20,
+		ErrorLog:       stdlog.New(logWriter, "", 0),
 	}
 
 	listener, err := net.Listen("tcp", s.Addr)

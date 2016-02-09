@@ -8,8 +8,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/matrix-org/dendron/proxy"
 )
 
 type StaticHandler struct {
@@ -38,11 +36,7 @@ func TestVersions(t *testing.T) {
 	defer s.Close()
 
 	u, _ := url.Parse(s.URL)
-	p := &proxy.SynapseProxy{
-		URL:    *u,
-		Client: http.Client{},
-	}
-	h, err := NewHandler(p, 25*time.Millisecond)
+	h, err := NewHandler(u, 25*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
