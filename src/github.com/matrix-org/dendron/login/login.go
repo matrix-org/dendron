@@ -37,13 +37,13 @@ type matrixLoginResponse struct {
 // or by proxying the request to a synapse.
 type MatrixLoginHandler struct {
 	db             database
-	proxy          *proxy.SynapseProxy
+	proxy          http.HandlerFunc
 	serverName     string
 	macaroonSecret string
 }
 
 // NewHandler makes a new MatrixLoginHandler.
-func NewHandler(db *sql.DB, proxy *proxy.SynapseProxy, serverName, macaroonSecret string) (*MatrixLoginHandler, error) {
+func NewHandler(db *sql.DB, proxy http.HandlerFunc, serverName, macaroonSecret string) (*MatrixLoginHandler, error) {
 	sqlDB, err := makeSQLDatabase(db)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func NewHandler(db *sql.DB, proxy *proxy.SynapseProxy, serverName, macaroonSecre
 func (h *MatrixLoginHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 	if req.Method != "POST" {
-		h.proxy.ProxyHTTP(w, req.Method, req.URL, req.Body, req.ContentLength, req.Header)
+		h.proxy(w, req)
 		return
 	}
 
@@ -95,7 +95,8 @@ func (h *MatrixLoginHandler) ServeHTTP(w http.ResponseWriter, req *http.Request)
 
 		json.NewEncoder(w).Encode(response)
 	default:
-		h.proxy.ProxyHTTP(w, req.Method, req.URL, bytes.NewBuffer(body), req.ContentLength, req.Header)
+		req.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+		h.proxy(w, req)
 	}
 }
 
