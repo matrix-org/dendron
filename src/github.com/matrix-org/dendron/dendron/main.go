@@ -12,12 +12,14 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 	stdlog "log"
 
+	"github.com/matrix-org/dendron/logging"
 	"github.com/matrix-org/dendron/login"
 	"github.com/matrix-org/dendron/proxy"
 	"github.com/matrix-org/dendron/versions"
@@ -39,6 +41,8 @@ var (
 	listenTLS      = flag.Bool("tls", true, "Listen for HTTPS requests, otherwise listen for HTTP requests")
 	listenCertFile = flag.String("cert-file", "", "TLS Certificate. This must match the tls_certificate_path configured for synapse.")
 	listenKeyFile  = flag.String("key-file", "", "TLS Private Key. The private key for the certificate. This must be set if listening for HTTPS requests")
+
+	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
 
 func handleSignal(channel chan os.Signal, synapse *os.Process, synapseLog *log.Entry) {
@@ -78,6 +82,12 @@ func setMaxOpenFiles() (uint64, error) {
 
 func main() {
 	flag.Parse()
+
+	log.AddHook(logging.NewFSHook(
+		filepath.Join(*logDir, "info.log"),
+		filepath.Join(*logDir, "warn.log"),
+		filepath.Join(*logDir, "error.log"),
+	))
 
 	if noFiles, err := setMaxOpenFiles(); err != nil {
 		panic(err)
