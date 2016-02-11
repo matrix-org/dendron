@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"net/http/pprof"
 	"net/url"
 	"os"
 	"os/exec"
@@ -176,6 +177,13 @@ func main() {
 		fmt.Fprintln(w, "test")
 	})
 	mux.Handle("/_dendron/metrics", prometheus.Handler())
+
+	// The debug pprof handlers have to be hosted under "/debug/pprof" because
+	// that string is hardcoded inside them.
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
 	logWriter := log.StandardLogger().Writer()
 	defer logWriter.Close()
