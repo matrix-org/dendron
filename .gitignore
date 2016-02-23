@@ -1,6 +1,7 @@
 .*.swp
 bin
 pkg
+*.pyc
 
 .synapse-base/
 .sytest-base/

@@ -34,6 +34,12 @@
 			"branch": "master"
 		},
 		{
+			"importpath": "github.com/matrix-org/dugong",
+			"repository": "https://github.com/matrix-org/dugong",
+			"revision": "6b893e5ef2dd0ddcbfdf00aafe0278237456512b",
+			"branch": "master"
+		},
+		{
 			"importpath": "github.com/matrix-org/matrix-doc",
 			"repository": "https://github.com/matrix-org/matrix-doc",
 			"revision": "2e1c2c23e4c34b88262b03c15993551718e62859",
