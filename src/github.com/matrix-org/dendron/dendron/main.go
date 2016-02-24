@@ -17,14 +17,15 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
 	stdlog "log"
 
-	"github.com/matrix-org/dendron/logging"
+	log "github.com/Sirupsen/logrus"
+
 	"github.com/matrix-org/dendron/login"
 	"github.com/matrix-org/dendron/proxy"
 	"github.com/matrix-org/dendron/versions"
 
+	"github.com/matrix-org/dugong"
 	"github.com/prometheus/client_golang/prometheus"
 
 	_ "github.com/lib/pq" /* Database driver for postgres */
@@ -84,7 +85,7 @@ func setMaxOpenFiles() (uint64, error) {
 func main() {
 	flag.Parse()
 
-	log.AddHook(logging.NewFSHook(
+	log.AddHook(dugong.NewFSHook(
 		filepath.Join(*logDir, "info.log"),
 		filepath.Join(*logDir, "warn.log"),
 		filepath.Join(*logDir, "error.log"),

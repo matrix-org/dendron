@@ -1,10 +1,11 @@
-package logging
+package dugong
 
 import (
 	"fmt"
-	log "github.com/Sirupsen/logrus"
 	"os"
 	"sync/atomic"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 // NewFSHook makes a logging hook that writes JSON formatted
