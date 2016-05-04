@@ -48,12 +48,21 @@ var (
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
 
-func handleSignal(channel chan os.Signal, synapse *os.Process, synapseLog *log.Entry) {
+type signalHander struct {
+	synapseLog *log.Entry
+	synapse    *os.Process
+	pusher     *os.Process
+}
+
+func (h *signalHander) handleSignal(channel chan os.Signal) {
 	select {
 	case sig := <-channel:
 		log.WithField("signal", sig).Print("Got signal")
-		synapseLog.Print("Killing synapse")
-		synapse.Signal(os.Interrupt)
+		h.synapseLog.Print("Killing synapse")
+		h.synapse.Signal(os.Interrupt)
+		if h.pusher != nil {
+			h.pusher.Signal(os.Interrupt)
+		}
 		os.Exit(1)
 	}
 }
@@ -137,9 +146,13 @@ func main() {
 
 		synapse.Start()
 
+		sh := signalHander{
+			synapseLog: synapseLog,
+			synapse:    synapse.Process,
+		}
 		channel := make(chan os.Signal, 1)
 		signal.Notify(channel, os.Interrupt)
-		go handleSignal(channel, synapse.Process, synapseLog)
+		go sh.handleSignal(channel)
 
 		if err := waitForSynapse(synapseURL, synapseLog); err != nil {
 			synapseLog.Panic(err)
@@ -150,6 +163,7 @@ func main() {
 			pusher.Stderr = os.Stderr
 			synapseLog.Print("Starting pusher")
 			pusher.Start()
+			sh.pusher = pusher.Process
 		}
 
 		synapseLog.Print("Synapse started")
