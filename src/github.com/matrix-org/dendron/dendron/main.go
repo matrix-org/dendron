@@ -43,16 +43,26 @@ var (
 	listenTLS      = flag.Bool("tls", true, "Listen for HTTPS requests, otherwise listen for HTTP requests")
 	listenCertFile = flag.String("cert-file", "", "TLS Certificate. This must match the tls_certificate_path configured for synapse.")
 	listenKeyFile  = flag.String("key-file", "", "TLS Private Key. The private key for the certificate. This must be set if listening for HTTPS requests")
+	pusherConfig   = flag.String("pusher-config", "", "Path to a pusher config")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
 
-func handleSignal(channel chan os.Signal, synapse *os.Process, synapseLog *log.Entry) {
+type signalHander struct {
+	synapseLog *log.Entry
+	synapse    *os.Process
+	pusher     *os.Process
+}
+
+func (h *signalHander) handleSignal(channel chan os.Signal) {
 	select {
 	case sig := <-channel:
 		log.WithField("signal", sig).Print("Got signal")
-		synapseLog.Print("Killing synapse")
-		synapse.Signal(os.Interrupt)
+		h.synapseLog.Print("Killing synapse")
+		h.synapse.Signal(os.Interrupt)
+		if h.pusher != nil {
+			h.pusher.Signal(os.Interrupt)
+		}
 		os.Exit(1)
 	}
 }
@@ -125,6 +135,7 @@ func main() {
 	}
 
 	var synapse *exec.Cmd
+	var pusher *exec.Cmd
 
 	var synapseLog = log.WithField("synapse", synapseURL.String())
 
@@ -135,12 +146,24 @@ func main() {
 
 		synapse.Start()
 
+		sh := signalHander{
+			synapseLog: synapseLog,
+			synapse:    synapse.Process,
+		}
 		channel := make(chan os.Signal, 1)
 		signal.Notify(channel, os.Interrupt)
-		go handleSignal(channel, synapse.Process, synapseLog)
+		go sh.handleSignal(channel)
 
 		if err := waitForSynapse(synapseURL, synapseLog); err != nil {
 			synapseLog.Panic(err)
+		}
+
+		if *pusherConfig != "" {
+			pusher = exec.Command(*synapsePython, "-m", "synapse.app.pusher", "-c", *pusherConfig)
+			pusher.Stderr = os.Stderr
+			synapseLog.Print("Starting pusher")
+			pusher.Start()
+			sh.pusher = pusher.Process
 		}
 
 		synapseLog.Print("Synapse started")
@@ -221,6 +244,7 @@ func main() {
 		if err := synapse.Wait(); err != nil {
 			panic(err)
 		}
+		pusher.Process.Signal(os.Interrupt)
 	} else {
 		select {}
 	}
