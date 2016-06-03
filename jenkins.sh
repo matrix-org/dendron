@@ -20,9 +20,6 @@ golint src/... >golint.txt
 go tool vet src/ 2>govet.txt
 ./scripts/check_generated_proxy_paths.sh || exit 1
 
-
-
-
 set -e
 
 : ${GIT_BRANCH:="origin/$(git rev-parse --abbrev-ref HEAD)"}
@@ -42,7 +39,8 @@ virtualenv $WORKSPACE/.venv
 PYTHON=$WORKSPACE/.venv/bin/python
 PIP=$WORKSPACE/.venv/bin/pip
 (cd synapse ; $PYTHON synapse/python_dependencies.py | xargs -n1 $PIP install)
-
+$PIP install psycopg2
+$PIP install lxml
 
 if [[ ! -e .sytest-base ]]; then
   git clone https://github.com/matrix-org/sytest.git .sytest-base --mirror
