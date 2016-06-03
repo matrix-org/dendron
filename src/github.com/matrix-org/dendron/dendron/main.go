@@ -32,26 +32,29 @@ import (
 )
 
 var (
-	startSynapse   = flag.Bool("start-synapse", true, "Start a synapse process, otherwise connect to an existing synapse")
-	synapseConfig  = flag.String("synapse-config", "homeserver.yaml", "Path to synapse's config")
-	synapsePython  = flag.String("synapse-python", "python", "A python interpreter to use for synapse. This should be the python binary installed inside synapse's virtualenv. The interpreter will be looked up on the $PATH")
-	synapseURLStr  = flag.String("synapse-url", "http://localhost:18448", "The HTTP URL that synapse is configured to listen on.")
-	synapseDB      = flag.String("synapse-postgres", "", "Database config for the postgresql as per https://godoc.org/github.com/lib/pq#hdr-Connection_String_Parameters. This must point to the same database that synapse is configured to use")
-	serverName     = flag.String("server-name", "", "Matrix server name. This must match the server_name configured for synapse.")
-	macaroonSecret = flag.String("macaroon-secret", "", "Secret key for macaroons. This must match the macaroon_secret_key configured for synapse.")
-	listenAddr     = flag.String("addr", ":8448", "Address to listen for matrix requests on")
-	listenTLS      = flag.Bool("tls", true, "Listen for HTTPS requests, otherwise listen for HTTP requests")
-	listenCertFile = flag.String("cert-file", "", "TLS Certificate. This must match the tls_certificate_path configured for synapse.")
-	listenKeyFile  = flag.String("key-file", "", "TLS Private Key. The private key for the certificate. This must be set if listening for HTTPS requests")
-	pusherConfig   = flag.String("pusher-config", "", "Path to a pusher config")
+	startSynapse      = flag.Bool("start-synapse", true, "Start a synapse process, otherwise connect to an existing synapse")
+	synapseConfig     = flag.String("synapse-config", "homeserver.yaml", "Path to synapse's config")
+	synapsePython     = flag.String("synapse-python", "python", "A python interpreter to use for synapse. This should be the python binary installed inside synapse's virtualenv. The interpreter will be looked up on the $PATH")
+	synapseURLStr     = flag.String("synapse-url", "http://localhost:18448", "The HTTP URL that synapse is configured to listen on.")
+	synapseDB         = flag.String("synapse-postgres", "", "Database config for the postgresql as per https://godoc.org/github.com/lib/pq#hdr-Connection_String_Parameters. This must point to the same database that synapse is configured to use")
+	serverName        = flag.String("server-name", "", "Matrix server name. This must match the server_name configured for synapse.")
+	macaroonSecret    = flag.String("macaroon-secret", "", "Secret key for macaroons. This must match the macaroon_secret_key configured for synapse.")
+	listenAddr        = flag.String("addr", ":8448", "Address to listen for matrix requests on")
+	listenTLS         = flag.Bool("tls", true, "Listen for HTTPS requests, otherwise listen for HTTP requests")
+	listenCertFile    = flag.String("cert-file", "", "TLS Certificate. This must match the tls_certificate_path configured for synapse.")
+	listenKeyFile     = flag.String("key-file", "", "TLS Private Key. The private key for the certificate. This must be set if listening for HTTPS requests")
+	pusherConfig      = flag.String("pusher-config", "", "Path to a pusher config")
+	synchrotronConfig = flag.String("synchrotron-config", "", "Path to a synchrotron config")
+	synchrotronURLStr = flag.String("synchrotron-url", "", "The HTTP URL that the synchrotron will listen on")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
 
 type signalHander struct {
-	synapseLog *log.Entry
-	synapse    *os.Process
-	pusher     *os.Process
+	synapseLog  *log.Entry
+	synapse     *os.Process
+	pusher      *os.Process
+	synchrotron *os.Process
 }
 
 func (h *signalHander) handleSignal(channel chan os.Signal) {
@@ -62,6 +65,9 @@ func (h *signalHander) handleSignal(channel chan os.Signal) {
 		h.synapse.Signal(os.Interrupt)
 		if h.pusher != nil {
 			h.pusher.Signal(os.Interrupt)
+		}
+		if h.synchrotron != nil {
+			h.synchrotron.Signal(os.Interrupt)
 		}
 		os.Exit(1)
 	}
@@ -134,8 +140,17 @@ func main() {
 		panic(err)
 	}
 
+	var synchrotronURL *url.URL
+	if *synchrotronURLStr != "" {
+		synchrotronURL, err = url.Parse(*synchrotronURLStr)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	var synapse *exec.Cmd
 	var pusher *exec.Cmd
+	var synchrotron *exec.Cmd
 
 	var synapseLog = log.WithField("synapse", synapseURL.String())
 
@@ -164,6 +179,18 @@ func main() {
 			synapseLog.Print("Starting pusher")
 			pusher.Start()
 			sh.pusher = pusher.Process
+		}
+
+		if *synchrotronConfig != "" {
+			synchrotron = exec.Command(*synapsePython, "-m", "synapse.app.synchrotron", "-c", *synchrotronConfig)
+			synchrotron.Stderr = os.Stderr
+			synapseLog.Print("Starting synchrotron")
+			synchrotron.Start()
+			sh.synchrotron = synchrotron.Process
+
+			if err := waitForSynapse(synchrotronURL, synapseLog); err != nil {
+				synapseLog.Panic(err)
+			}
 		}
 
 		synapseLog.Print("Synapse started")
@@ -197,6 +224,19 @@ func main() {
 	mux.Handle("/_matrix/client/api/v1/login", loginFunc)
 	mux.Handle("/_matrix/client/r0/login", loginFunc)
 	mux.Handle("/_matrix/client/versions", versionsFunc)
+
+	if synchrotronURL != nil {
+		synchrotronReverseProxy := proxy.MeasureByPath(
+			proxyMetrics,
+			httputil.NewSingleHostReverseProxy(synchrotronURL).ServeHTTP,
+		)
+		synchrotronFunc := prometheus.InstrumentHandler(
+			"synchrotron", synchrotronReverseProxy,
+		)
+		mux.Handle("/_matrix/client/v2_alpha/sync", synchrotronFunc)
+		mux.Handle("/_matrix/client/r0/sync", synchrotronFunc)
+	}
+
 	mux.HandleFunc("/_dendron/test", func(w http.ResponseWriter, req *http.Request) {
 		fmt.Fprintln(w, "test")
 	})
@@ -244,7 +284,12 @@ func main() {
 		if err := synapse.Wait(); err != nil {
 			panic(err)
 		}
-		pusher.Process.Signal(os.Interrupt)
+		if pusher != nil {
+			pusher.Process.Signal(os.Interrupt)
+		}
+		if synchrotron != nil {
+			synchrotron.Process.Signal(os.Interrupt)
+		}
 	} else {
 		select {}
 	}
