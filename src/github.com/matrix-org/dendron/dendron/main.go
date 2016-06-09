@@ -131,7 +131,7 @@ func main() {
 	terminate := make(chan string, 1)
 
 	signals := make(chan os.Signal, 1)
-	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	go func() {
 		s := <-signals
 		terminate <- fmt.Sprint("Got signal", s)
