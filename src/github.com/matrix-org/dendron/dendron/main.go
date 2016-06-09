@@ -128,9 +128,9 @@ func main() {
 	var synapseLog = log.WithField("synapse", synapseURL.String())
 
 	// Used to terminate dendron.
-	terminate := make(chan string)
+	terminate := make(chan string, 1)
 
-	signals := make(chan os.Signal)
+	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		s := <-signals
