@@ -143,7 +143,11 @@ func main() {
 		synapseLog.Print("Starting synapse")
 
 		synapse.Start()
-		defer synapse.Process.Signal(os.Interrupt)
+		defer func() {
+			if err := synapse.Process.Signal(os.Interrupt); err != nil {
+				synapseLog.WithError(err).Print("Failed to kill synapse")
+			}
+		}()
 
 		// Wait for synapse to start.
 		if err := waitForSynapse(synapseURL, synapseLog); err != nil {
@@ -152,7 +156,9 @@ func main() {
 
 		go func() {
 			// Wait for synapse to stop.
-			synapse.Process.Wait()
+			if _, err := synapse.Process.Wait(); err != nil {
+				synapseLog.WithError(err).Print("Error waiting for synapse")
+			}
 			terminate <- "Synapse Stopped"
 		}()
 
@@ -161,11 +167,17 @@ func main() {
 			pusher.Stderr = os.Stderr
 			synapseLog.Print("Starting pusher")
 			pusher.Start()
-			defer pusher.Process.Signal(os.Interrupt)
+			defer func() {
+				if err := pusher.Process.Signal(os.Interrupt); err != nil {
+					synapseLog.WithError(err).Print("Failed to kill pusher")
+				}
+			}()
 
 			go func() {
 				// Wait for the pusher to stop.
-				pusher.Process.Wait()
+				if _, err := pusher.Process.Wait(); err != nil {
+					synapseLog.WithError(err).Print("Error waiting for pusher")
+				}
 				terminate <- "Pusher Stopped"
 			}()
 		}
@@ -175,7 +187,11 @@ func main() {
 			synchrotron.Stderr = os.Stderr
 			synapseLog.Print("Starting synchrotron")
 			synchrotron.Start()
-			defer synchrotron.Process.Signal(os.Interrupt)
+			defer func() {
+				if err := synchrotron.Process.Signal(os.Interrupt); err != nil {
+					synapseLog.WithError(err).Print("Failed to kill synchrotron")
+				}
+			}()
 
 			// Wait for the synchrotron to start.
 			if err := waitForSynapse(synchrotronURL, synapseLog); err != nil {
@@ -183,7 +199,9 @@ func main() {
 			}
 			go func() {
 				// Wait for the synchrotron to stop.
-				synchrotron.Process.Wait()
+				if _, err := synchrotron.Process.Wait(); err != nil {
+					synapseLog.WithError(err).Print("Error waiting for synchrotron")
+				}
 				terminate <- "Synchrotron Stopped"
 			}()
 		}
