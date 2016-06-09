@@ -145,11 +145,13 @@ func main() {
 		synapse.Start()
 		defer synapse.Process.Signal(os.Interrupt)
 
+		// Wait for synapse to start.
 		if err := waitForSynapse(synapseURL, synapseLog); err != nil {
 			synapseLog.Panic(err)
 		}
 
 		go func() {
+			// Wait for synapse to stop.
 			synapse.Process.Wait()
 			terminate <- "Synapse Stopped"
 		}()
@@ -162,6 +164,7 @@ func main() {
 			defer pusher.Process.Signal(os.Interrupt)
 
 			go func() {
+				// Wait for the pusher to stop.
 				pusher.Process.Wait()
 				terminate <- "Pusher Stopped"
 			}()
@@ -174,10 +177,12 @@ func main() {
 			synchrotron.Start()
 			defer synchrotron.Process.Signal(os.Interrupt)
 
+			// Wait for the synchrotron to start.
 			if err := waitForSynapse(synchrotronURL, synapseLog); err != nil {
 				synapseLog.Panic(err)
 			}
 			go func() {
+				// Wait for the synchrotron to stop.
 				synchrotron.Process.Wait()
 				terminate <- "Synchrotron Stopped"
 			}()
