@@ -134,7 +134,7 @@ func main() {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	go func() {
 		s := <-signals
-		terminate <- fmt.Sprint("Got signal", s)
+		terminate <- fmt.Sprintf("Got signal %v", s)
 	}()
 
 	if *startSynapse {
