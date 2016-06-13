@@ -143,16 +143,16 @@ func main() {
 	if *startSynapse {
 		synapse := exec.Command(*synapsePython, "-m", "synapse.app.homeserver", "-c", *synapseConfig)
 		synapse.Stderr = os.Stderr
-		synapseLog.Print("Starting synapse")
+		synapseLog.Print("Starting process")
 		if err := synapse.Start(); err != nil {
 			synapseLog.Panic(err)
 		}
 		synapseLog = synapseLog.WithField("pid", synapse.Process.Pid)
-		synapseLog.Print("Started synapse")
+		synapseLog.Print("Started process")
 		defer func() {
-			synapseLog.Print("Stopping synapse")
+			synapseLog.Print("Stopping process")
 			if err := synapse.Process.Signal(os.Interrupt); err != nil {
-				synapseLog.WithError(err).Print("Failed to kill synapse")
+				synapseLog.WithError(err).Print("Failed to kill process")
 			}
 		}()
 
@@ -164,7 +164,7 @@ func main() {
 		go func() {
 			// Wait for synapse to stop.
 			if _, err := synapse.Process.Wait(); err != nil {
-				synapseLog.WithError(err).Print("Error waiting for synapse")
+				synapseLog.WithError(err).Print("Error waiting for process")
 			}
 			terminate <- "Synapse Stopped"
 		}()
@@ -173,23 +173,23 @@ func main() {
 			pusher := exec.Command(*synapsePython, "-m", "synapse.app.pusher", "-c", *pusherConfig)
 			pusher.Stderr = os.Stderr
 			pusherLog := log.WithField("app", "pusher")
-			pusherLog.Print("Starting pusher")
+			pusherLog.Print("Starting process")
 			if err := pusher.Start(); err != nil {
 				pusherLog.Panic(err)
 			}
 			pusherLog = pusherLog.WithField("pid", pusher.Process.Pid)
-			pusherLog.Print("Started pusher")
+			pusherLog.Print("Started process")
 			defer func() {
-				pusherLog.Print("Stopping pusher")
+				pusherLog.Print("Stopping process")
 				if err := pusher.Process.Signal(os.Interrupt); err != nil {
-					pusherLog.WithError(err).Print("Failed to kill pusher")
+					pusherLog.WithError(err).Print("Failed to kill process")
 				}
 			}()
 
 			go func() {
 				// Wait for the pusher to stop.
 				if _, err := pusher.Process.Wait(); err != nil {
-					pusherLog.WithError(err).Print("Error waiting for pusher")
+					pusherLog.WithError(err).Print("Error waiting for process")
 				}
 				terminate <- "Pusher Stopped"
 			}()
@@ -203,17 +203,17 @@ func main() {
 				"synchrotron": *synchrotronURLStr,
 			})
 
-			synchrotronLog.Print("Starting synchrotron")
+			synchrotronLog.Print("Starting process")
 			if err := synchrotron.Start(); err != nil {
 				synchrotronLog.Panic(err)
 			}
 			synchrotronLog = synchrotronLog.WithField("pid", synchrotron.Process.Pid)
 
-			synchrotronLog.Print("Started synchrotron")
+			synchrotronLog.Print("Started process")
 			defer func() {
-				synchrotronLog.Print("Stopping synchrotron")
+				synchrotronLog.Print("Stopping process")
 				if err := synchrotron.Process.Signal(os.Interrupt); err != nil {
-					synchrotronLog.WithError(err).Print("Failed to kill synchrotron")
+					synchrotronLog.WithError(err).Print("Failed to kill process")
 				}
 			}()
 
@@ -224,7 +224,7 @@ func main() {
 			go func() {
 				// Wait for the synchrotron to stop.
 				if _, err := synchrotron.Process.Wait(); err != nil {
-					synchrotronLog.WithError(err).Print("Error waiting for synchrotron")
+					synchrotronLog.WithError(err).Print("Error waiting for process")
 				}
 				terminate <- "Synchrotron Stopped"
 			}()
