@@ -125,7 +125,10 @@ func main() {
 		}
 	}
 
-	var synapseLog = log.WithField("synapse", synapseURL.String())
+	var synapseLog = log.WithFields(log.Fields{
+		"synapse": synapseURL.String(),
+		"app":     "synapse",
+	})
 
 	// Used to terminate dendron.
 	terminate := make(chan string, 1)
@@ -141,9 +144,13 @@ func main() {
 		synapse := exec.Command(*synapsePython, "-m", "synapse.app.homeserver", "-c", *synapseConfig)
 		synapse.Stderr = os.Stderr
 		synapseLog.Print("Starting synapse")
-
-		synapse.Start()
+		if err := synapse.Start(); err != nil {
+			synapseLog.Panic(err)
+		}
+		synapseLog = synapseLog.WithField("pid", synapse.Process.Pid)
+		synapseLog.Print("Started synapse")
 		defer func() {
+			synapseLog.Print("Stopping synapse")
 			if err := synapse.Process.Signal(os.Interrupt); err != nil {
 				synapseLog.WithError(err).Print("Failed to kill synapse")
 			}
@@ -165,18 +172,24 @@ func main() {
 		if *pusherConfig != "" {
 			pusher := exec.Command(*synapsePython, "-m", "synapse.app.pusher", "-c", *pusherConfig)
 			pusher.Stderr = os.Stderr
-			synapseLog.Print("Starting pusher")
-			pusher.Start()
+			pusherLog := log.WithField("app", "pusher")
+			pusherLog.Print("Starting pusher")
+			if err := pusher.Start(); err != nil {
+				pusherLog.Panic(err)
+			}
+			pusherLog = pusherLog.WithField("pid", pusher.Process.Pid)
+			pusherLog.Print("Started pusher")
 			defer func() {
+				pusherLog.Print("Stopping pusher")
 				if err := pusher.Process.Signal(os.Interrupt); err != nil {
-					synapseLog.WithError(err).Print("Failed to kill pusher")
+					pusherLog.WithError(err).Print("Failed to kill pusher")
 				}
 			}()
 
 			go func() {
 				// Wait for the pusher to stop.
 				if _, err := pusher.Process.Wait(); err != nil {
-					synapseLog.WithError(err).Print("Error waiting for pusher")
+					pusherLog.WithError(err).Print("Error waiting for pusher")
 				}
 				terminate <- "Pusher Stopped"
 			}()
@@ -185,22 +198,33 @@ func main() {
 		if *synchrotronConfig != "" {
 			synchrotron := exec.Command(*synapsePython, "-m", "synapse.app.synchrotron", "-c", *synchrotronConfig)
 			synchrotron.Stderr = os.Stderr
-			synapseLog.Print("Starting synchrotron")
-			synchrotron.Start()
+			synchrotronLog := log.WithFields(log.Fields{
+				"app":         "synchrotron",
+				"synchrotron": *synchrotronURLStr,
+			})
+
+			synchrotronLog.Print("Starting synchrotron")
+			if err := synchrotron.Start(); err != nil {
+				synchrotronLog.Panic(err)
+			}
+			synchrotronLog = synchrotronLog.WithField("pid", synchrotron.Process.Pid)
+
+			synchrotronLog.Print("Started synchrotron")
 			defer func() {
+				synchrotronLog.Print("Stopping synchrotron")
 				if err := synchrotron.Process.Signal(os.Interrupt); err != nil {
-					synapseLog.WithError(err).Print("Failed to kill synchrotron")
+					synchrotronLog.WithError(err).Print("Failed to kill synchrotron")
 				}
 			}()
 
 			// Wait for the synchrotron to start.
-			if err := waitForSynapse(synchrotronURL, synapseLog); err != nil {
-				synapseLog.Panic(err)
+			if err := waitForSynapse(synchrotronURL, synchrotronLog); err != nil {
+				synchrotronLog.Panic(err)
 			}
 			go func() {
 				// Wait for the synchrotron to stop.
 				if _, err := synchrotron.Process.Wait(); err != nil {
-					synapseLog.WithError(err).Print("Error waiting for synchrotron")
+					synchrotronLog.WithError(err).Print("Error waiting for synchrotron")
 				}
 				terminate <- "Synchrotron Stopped"
 			}()
