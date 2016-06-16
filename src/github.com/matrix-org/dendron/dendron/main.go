@@ -43,8 +43,8 @@ var (
 	listenTLS         = flag.Bool("tls", true, "Listen for HTTPS requests, otherwise listen for HTTP requests")
 	listenCertFile    = flag.String("cert-file", "", "TLS Certificate. This must match the tls_certificate_path configured for synapse.")
 	listenKeyFile     = flag.String("key-file", "", "TLS Private Key. The private key for the certificate. This must be set if listening for HTTPS requests")
-	pusherWorker      = flag.String("pusher-worker", "", "Pusher worker name")
-	synchrotronWorker = flag.String("synchrotron-worker", "", "Synchrotron worker name")
+	pusherConfig      = flag.String("pusher-config", "", "Pusher worker config")
+	synchrotronConfig = flag.String("synchrotron-config", "", "Synchrotron worker config")
 	synchrotronURLStr = flag.String("synchrotron-url", "", "The HTTP URL that the synchrotron will listen on")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
@@ -169,12 +169,12 @@ func main() {
 			terminate <- "Synapse Stopped"
 		}()
 
-		if *pusherWorker != "" {
+		if *pusherConfig != "" {
 			pusher := exec.Command(
 				*synapsePython,
 				"-m", "synapse.app.pusher",
-				*pusherWorker,
 				"-c", *synapseConfig,
+				"-c", *pusherConfig,
 			)
 			pusher.Stderr = os.Stderr
 			pusherLog := log.WithField("app", "pusher")
@@ -200,12 +200,12 @@ func main() {
 			}()
 		}
 
-		if *synchrotronWorker != "" {
+		if *synchrotronConfig != "" {
 			synchrotron := exec.Command(
 				*synapsePython,
 				"-m", "synapse.app.synchrotron",
-				*synchrotronWorker,
 				"-c", *synapseConfig,
+				"-c", *synchrotronConfig,
 			)
 			synchrotron.Stderr = os.Stderr
 			synchrotronLog := log.WithFields(log.Fields{
