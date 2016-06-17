@@ -43,27 +43,27 @@ var (
 	listenTLS         = flag.Bool("tls", true, "Listen for HTTPS requests, otherwise listen for HTTP requests")
 	listenCertFile    = flag.String("cert-file", "", "TLS Certificate. This must match the tls_certificate_path configured for synapse.")
 	listenKeyFile     = flag.String("key-file", "", "TLS Private Key. The private key for the certificate. This must be set if listening for HTTPS requests")
-	pusherConfig      = flag.String("pusher-config", "", "Path to a pusher config")
-	synchrotronConfig = flag.String("synchrotron-config", "", "Path to a synchrotron config")
+	pusherConfig      = flag.String("pusher-config", "", "Pusher worker config")
+	synchrotronConfig = flag.String("synchrotron-config", "", "Synchrotron worker config")
 	synchrotronURLStr = flag.String("synchrotron-url", "", "The HTTP URL that the synchrotron will listen on")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
 
-func waitForSynapse(synapseURL *url.URL, synapseLog *log.Entry) error {
-	synapseLog.Print("Connecting to synapse")
+func waitForProcess(processURL *url.URL, processLog *log.Entry) error {
+	processLog.Print("Connecting to process")
 	period := 50 * time.Millisecond
 	timeout := 20 * time.Second
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		if resp, err := http.Get(synapseURL.String()); err == nil {
+		if resp, err := http.Get(processURL.String()); err == nil {
 			resp.Body.Close()
 			return nil
 		}
 		time.Sleep(period)
 	}
 
-	return fmt.Errorf("timeout waiting for synapse to start")
+	return fmt.Errorf("timeout waiting for process to accept http connections")
 }
 
 func setMaxOpenFiles() (uint64, error) {
@@ -157,7 +157,7 @@ func main() {
 		}()
 
 		// Wait for synapse to start.
-		if err := waitForSynapse(synapseURL, synapseLog); err != nil {
+		if err := waitForProcess(synapseURL, synapseLog); err != nil {
 			synapseLog.Panic(err)
 		}
 
@@ -170,7 +170,12 @@ func main() {
 		}()
 
 		if *pusherConfig != "" {
-			pusher := exec.Command(*synapsePython, "-m", "synapse.app.pusher", "-c", *pusherConfig)
+			pusher := exec.Command(
+				*synapsePython,
+				"-m", "synapse.app.pusher",
+				"-c", *synapseConfig,
+				"-c", *pusherConfig,
+			)
 			pusher.Stderr = os.Stderr
 			pusherLog := log.WithField("app", "pusher")
 			pusherLog.Print("Starting process")
@@ -196,7 +201,12 @@ func main() {
 		}
 
 		if *synchrotronConfig != "" {
-			synchrotron := exec.Command(*synapsePython, "-m", "synapse.app.synchrotron", "-c", *synchrotronConfig)
+			synchrotron := exec.Command(
+				*synapsePython,
+				"-m", "synapse.app.synchrotron",
+				"-c", *synapseConfig,
+				"-c", *synchrotronConfig,
+			)
 			synchrotron.Stderr = os.Stderr
 			synchrotronLog := log.WithFields(log.Fields{
 				"app":         "synchrotron",
@@ -218,7 +228,7 @@ func main() {
 			}()
 
 			// Wait for the synchrotron to start.
-			if err := waitForSynapse(synchrotronURL, synchrotronLog); err != nil {
+			if err := waitForProcess(synchrotronURL, synchrotronLog); err != nil {
 				synchrotronLog.Panic(err)
 			}
 			go func() {
