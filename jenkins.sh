@@ -70,6 +70,7 @@ export PGUSER PGPASSWORD
 
 RUN_POSTGRES=""
 
+mkdir -p $WORKSPACE/sytest/localhost-0
 cat > $WORKSPACE/sytest/localhost-0/database.yaml << EOF
 name: psycopg2
 args:
@@ -80,7 +81,7 @@ args:
     sslmode: disable
 EOF
 
-
+mkdir -p $WORKSPACE/sytest/localhost-1
 cat > $WORKSPACE/sytest/localhost-1/database.yaml << EOF
 name: psycopg2
 args:
