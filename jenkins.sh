@@ -69,34 +69,34 @@ export PERL5LIB PERL_MB_OPT PERL_MM_OPT
 export PGUSER PGPASSWORD
 
 RUN_POSTGRES=""
-for port in $(($PORT_BASE + 1)) $(($PORT_BASE + 2)); do
-    if psql sytest_jenkins_$port -h localhost <<< ""; then
-        mkdir -p $WORKSPACE/sytest/localhost-$port
-        RUN_POSTGRES=$RUN_POSTGRES:$port
-	readlink -f $WORKSPACE/sytest/localhost-$port/database.yaml
-        cat > $WORKSPACE/sytest/localhost-$port/database.yaml << EOF
+
+cat > $WORKSPACE/sytest/localhost-0/database.yaml << EOF
 name: psycopg2
 args:
-    database: sytest_jenkins_$port
+    database: ${POSTGRES_DB_1}
     host: localhost
     user: ${PGUSER}
     password: ${PGPASSWORD}
     sslmode: disable
 EOF
-    fi
-done
 
-# Run if both postgresql databases exist
-if test "$RUN_POSTGRES" = ":$(($PORT_BASE + 1)):$(($PORT_BASE + 2))"; then
-    echo >&2 "Running sytest with PostgreSQL";
-    $PIP install psycopg2
-    ./run-tests.pl \
+
+cat > $WORKSPACE/sytest/localhost-1/database.yaml << EOF
+name: psycopg2
+args:
+    database: ${POSTGRES_DB_2}
+    host: localhost
+    user: ${PGUSER}
+    password: ${PGPASSWORD}
+    sslmode: disable
+EOF
+
+
+$PIP install psycopg2
+./run-tests.pl \
       -O tap \
       --synapse-directory=$WORKSPACE/synapse \
       --dendron=$WORKSPACE/bin/dendron \
       --python=$PYTHON \
       --all \
       --port-base=$PORT_BASE > results.tap
-else
-    echo >&2 "Skipping running sytest with PostgreSQL, $RUN_POSTGRES"
-fi
