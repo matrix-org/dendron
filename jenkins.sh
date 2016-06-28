@@ -63,6 +63,7 @@ export PERL5LIB PERL_MB_OPT PERL_MM_OPT
 ./install-deps.pl
 
 : ${PORT_BASE:=8000}
+: ${PORT_COUNT:=20}
 
 : PGUSER=${PGUSER:=$USER}
 : PGPASSWORD=${PGPASSWORD:=}
@@ -100,4 +101,4 @@ $PIP install psycopg2
       --dendron=$WORKSPACE/bin/dendron \
       --python=$PYTHON \
       --all \
-      --port-base=$PORT_BASE > results.tap
+      --port-range=$PORT_BASE:$(($PORT_BASE + $PORT_COUNT)) > results.tap
