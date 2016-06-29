@@ -50,6 +50,54 @@ var (
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
 
+func startProcess(app string, processURL *url.URL, terminate chan<- string, name string, args ...string) (*log.Entry, func(), error) {
+	process := exec.Command(name, args...)
+	process.Stderr = os.Stderr
+	processLog := log.WithField("app", app)
+
+	if processURL != nil {
+		processLog = processLog.WithField("processURL", processURL.String())
+	}
+
+	processLog.Print("Starting process")
+
+	if err := process.Start(); err != nil {
+		return processLog, nil, err
+	}
+
+	if processURL != nil {
+		if err := waitForProcess(processURL, processLog); err != nil {
+			return processLog, nil, err
+		}
+	}
+
+	go func() {
+		// Wait for process to stop.
+		if _, err := process.Process.Wait(); err != nil {
+			processLog.WithError(err).Print("Error waiting for process")
+		}
+		terminate <- fmt.Sprintf("Process %s Stopped", app)
+	}()
+
+	cleanup := func() {
+		processLog.Print("Stopping process")
+
+		go func() {
+			// Give the process ten seconds to shutdown cleanly.
+			time.Sleep(10 * time.Second)
+			processLog.Print("Process failed to stop within 10 seconds")
+			process.Process.Signal(syscall.SIGKILL)
+		}()
+
+		if err := process.Process.Signal(syscall.SIGTERM); err != nil {
+			processLog.WithError(err).Print("Failed to kill process")
+		}
+		process.Process.Wait()
+	}
+
+	return processLog, cleanup, nil
+}
+
 func waitForProcess(processURL *url.URL, processLog *log.Entry) error {
 	processLog.Print("Connecting to process")
 	period := 50 * time.Millisecond
@@ -126,8 +174,7 @@ func main() {
 	}
 
 	var synapseLog = log.WithFields(log.Fields{
-		"synapse": synapseURL.String(),
-		"app":     "synapse",
+		"processURL": synapseURL.String(),
 	})
 
 	// Used to terminate dendron.
@@ -141,103 +188,51 @@ func main() {
 	}()
 
 	if *startSynapse {
-		synapse := exec.Command(*synapsePython, "-m", "synapse.app.homeserver", "-c", *synapseConfig)
-		synapse.Stderr = os.Stderr
-		synapseLog.Print("Starting process")
-		if err := synapse.Start(); err != nil {
-			synapseLog.Panic(err)
-		}
-		synapseLog = synapseLog.WithField("pid", synapse.Process.Pid)
-		synapseLog.Print("Started process")
-		defer func() {
-			synapseLog.Print("Stopping process")
-			if err := synapse.Process.Signal(os.Interrupt); err != nil {
-				synapseLog.WithError(err).Print("Failed to kill process")
-			}
-		}()
+		processLog, cleanup, err := startProcess(
+			"synapse", synapseURL, terminate,
+			*synapsePython,
+			"-m", "synapse.app.homeserver",
+			"-c", *synapseConfig,
+		)
 
-		// Wait for synapse to start.
-		if err := waitForProcess(synapseURL, synapseLog); err != nil {
-			synapseLog.Panic(err)
+		synapseLog = processLog
+
+		if err != nil {
+			processLog.Panic(err)
 		}
 
-		go func() {
-			// Wait for synapse to stop.
-			if _, err := synapse.Process.Wait(); err != nil {
-				synapseLog.WithError(err).Print("Error waiting for process")
-			}
-			terminate <- "Synapse Stopped"
-		}()
+		defer cleanup()
 
 		if *pusherConfig != "" {
-			pusher := exec.Command(
+			processLog, cleanup, err := startProcess(
+				"pusher", nil, terminate,
 				*synapsePython,
 				"-m", "synapse.app.pusher",
 				"-c", *synapseConfig,
 				"-c", *pusherConfig,
 			)
-			pusher.Stderr = os.Stderr
-			pusherLog := log.WithField("app", "pusher")
-			pusherLog.Print("Starting process")
-			if err := pusher.Start(); err != nil {
-				pusherLog.Panic(err)
-			}
-			pusherLog = pusherLog.WithField("pid", pusher.Process.Pid)
-			pusherLog.Print("Started process")
-			defer func() {
-				pusherLog.Print("Stopping process")
-				if err := pusher.Process.Signal(os.Interrupt); err != nil {
-					pusherLog.WithError(err).Print("Failed to kill process")
-				}
-			}()
 
-			go func() {
-				// Wait for the pusher to stop.
-				if _, err := pusher.Process.Wait(); err != nil {
-					pusherLog.WithError(err).Print("Error waiting for process")
-				}
-				terminate <- "Pusher Stopped"
-			}()
+			if err != nil {
+				processLog.Panic(err)
+			}
+
+			defer cleanup()
 		}
 
 		if *synchrotronConfig != "" {
-			synchrotron := exec.Command(
+			processLog, cleanup, err := startProcess(
+				"synchrotron", synchrotronURL, terminate,
 				*synapsePython,
 				"-m", "synapse.app.synchrotron",
 				"-c", *synapseConfig,
 				"-c", *synchrotronConfig,
 			)
-			synchrotron.Stderr = os.Stderr
-			synchrotronLog := log.WithFields(log.Fields{
-				"app":         "synchrotron",
-				"synchrotron": *synchrotronURLStr,
-			})
 
-			synchrotronLog.Print("Starting process")
-			if err := synchrotron.Start(); err != nil {
-				synchrotronLog.Panic(err)
+			if err != nil {
+				processLog.Panic(err)
 			}
-			synchrotronLog = synchrotronLog.WithField("pid", synchrotron.Process.Pid)
 
-			synchrotronLog.Print("Started process")
-			defer func() {
-				synchrotronLog.Print("Stopping process")
-				if err := synchrotron.Process.Signal(os.Interrupt); err != nil {
-					synchrotronLog.WithError(err).Print("Failed to kill process")
-				}
-			}()
-
-			// Wait for the synchrotron to start.
-			if err := waitForProcess(synchrotronURL, synchrotronLog); err != nil {
-				synchrotronLog.Panic(err)
-			}
-			go func() {
-				// Wait for the synchrotron to stop.
-				if _, err := synchrotron.Process.Wait(); err != nil {
-					synchrotronLog.WithError(err).Print("Error waiting for process")
-				}
-				terminate <- "Synchrotron Stopped"
-			}()
+			defer cleanup()
 		}
 
 		synapseLog.Print("Synapse started")
