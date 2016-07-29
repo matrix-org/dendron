@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/tls"
-	"database/sql"
 	"flag"
 	"fmt"
 	"net"
@@ -21,14 +20,11 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
-	"github.com/matrix-org/dendron/login"
 	"github.com/matrix-org/dendron/proxy"
 	"github.com/matrix-org/dendron/versions"
 
 	"github.com/matrix-org/dugong"
 	"github.com/prometheus/client_golang/prometheus"
-
-	_ "github.com/lib/pq" /* Database driver for postgres */
 )
 
 var (
@@ -36,7 +32,7 @@ var (
 	synapseConfig          = flag.String("synapse-config", "homeserver.yaml", "Path to synapse's config")
 	synapsePython          = flag.String("synapse-python", "python", "A python interpreter to use for synapse. This should be the python binary installed inside synapse's virtualenv. The interpreter will be looked up on the $PATH")
 	synapseURLStr          = flag.String("synapse-url", "http://localhost:18448", "The HTTP URL that synapse is configured to listen on.")
-	synapseDB              = flag.String("synapse-postgres", "", "Database config for the postgresql as per https://godoc.org/github.com/lib/pq#hdr-Connection_String_Parameters. This must point to the same database that synapse is configured to use")
+	synapseDB              = flag.String("synapse-postgres", "", "Unused")
 	serverName             = flag.String("server-name", "", "Matrix server name. This must match the server_name configured for synapse.")
 	macaroonSecret         = flag.String("macaroon-secret", "", "Secret key for macaroons. This must match the macaroon_secret_key configured for synapse.")
 	listenAddr             = flag.String("addr", ":8448", "Address to listen for matrix requests on")
@@ -266,31 +262,18 @@ func main() {
 		synapseLog.Print("Using existing synapse")
 	}
 
-	db, err := sql.Open("postgres", *synapseDB)
-	if err != nil {
-		panic(err)
-	}
-
 	reverseProxy := proxy.MeasureByPath(proxyMetrics, httputil.NewSingleHostReverseProxy(synapseURL).ServeHTTP)
-
-	loginHandler, err := login.NewHandler(db, reverseProxy, *serverName, *macaroonSecret)
-	if err != nil {
-		panic(err)
-	}
 
 	versionsHandler, err := versions.NewHandler(synapseURL, time.Hour)
 	if err != nil {
 		panic(err)
 	}
 
-	loginFunc := prometheus.InstrumentHandler("login", loginHandler)
 	proxyFunc := prometheus.InstrumentHandler("proxy", reverseProxy)
 	versionsFunc := prometheus.InstrumentHandler("versions", versionsHandler)
 
 	mux := http.NewServeMux()
 	mux.Handle("/", proxyFunc)
-	mux.Handle("/_matrix/client/api/v1/login", loginFunc)
-	mux.Handle("/_matrix/client/r0/login", loginFunc)
 	mux.Handle("/_matrix/client/versions", versionsFunc)
 
 	if synchrotronURL != nil {
