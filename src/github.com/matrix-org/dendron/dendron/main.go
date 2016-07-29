@@ -32,20 +32,22 @@ import (
 )
 
 var (
-	startSynapse      = flag.Bool("start-synapse", true, "Start a synapse process, otherwise connect to an existing synapse")
-	synapseConfig     = flag.String("synapse-config", "homeserver.yaml", "Path to synapse's config")
-	synapsePython     = flag.String("synapse-python", "python", "A python interpreter to use for synapse. This should be the python binary installed inside synapse's virtualenv. The interpreter will be looked up on the $PATH")
-	synapseURLStr     = flag.String("synapse-url", "http://localhost:18448", "The HTTP URL that synapse is configured to listen on.")
-	synapseDB         = flag.String("synapse-postgres", "", "Database config for the postgresql as per https://godoc.org/github.com/lib/pq#hdr-Connection_String_Parameters. This must point to the same database that synapse is configured to use")
-	serverName        = flag.String("server-name", "", "Matrix server name. This must match the server_name configured for synapse.")
-	macaroonSecret    = flag.String("macaroon-secret", "", "Secret key for macaroons. This must match the macaroon_secret_key configured for synapse.")
-	listenAddr        = flag.String("addr", ":8448", "Address to listen for matrix requests on")
-	listenTLS         = flag.Bool("tls", true, "Listen for HTTPS requests, otherwise listen for HTTP requests")
-	listenCertFile    = flag.String("cert-file", "", "TLS Certificate. This must match the tls_certificate_path configured for synapse.")
-	listenKeyFile     = flag.String("key-file", "", "TLS Private Key. The private key for the certificate. This must be set if listening for HTTPS requests")
-	pusherConfig      = flag.String("pusher-config", "", "Pusher worker config")
-	synchrotronConfig = flag.String("synchrotron-config", "", "Synchrotron worker config")
-	synchrotronURLStr = flag.String("synchrotron-url", "", "The HTTP URL that the synchrotron will listen on")
+	startSynapse           = flag.Bool("start-synapse", true, "Start a synapse process, otherwise connect to an existing synapse")
+	synapseConfig          = flag.String("synapse-config", "homeserver.yaml", "Path to synapse's config")
+	synapsePython          = flag.String("synapse-python", "python", "A python interpreter to use for synapse. This should be the python binary installed inside synapse's virtualenv. The interpreter will be looked up on the $PATH")
+	synapseURLStr          = flag.String("synapse-url", "http://localhost:18448", "The HTTP URL that synapse is configured to listen on.")
+	synapseDB              = flag.String("synapse-postgres", "", "Database config for the postgresql as per https://godoc.org/github.com/lib/pq#hdr-Connection_String_Parameters. This must point to the same database that synapse is configured to use")
+	serverName             = flag.String("server-name", "", "Matrix server name. This must match the server_name configured for synapse.")
+	macaroonSecret         = flag.String("macaroon-secret", "", "Secret key for macaroons. This must match the macaroon_secret_key configured for synapse.")
+	listenAddr             = flag.String("addr", ":8448", "Address to listen for matrix requests on")
+	listenTLS              = flag.Bool("tls", true, "Listen for HTTPS requests, otherwise listen for HTTP requests")
+	listenCertFile         = flag.String("cert-file", "", "TLS Certificate. This must match the tls_certificate_path configured for synapse.")
+	listenKeyFile          = flag.String("key-file", "", "TLS Private Key. The private key for the certificate. This must be set if listening for HTTPS requests")
+	pusherConfig           = flag.String("pusher-config", "", "Pusher worker config")
+	synchrotronConfig      = flag.String("synchrotron-config", "", "Synchrotron worker config")
+	synchrotronURLStr      = flag.String("synchrotron-url", "", "The HTTP URL that the synchrotron will listen on")
+	federationReaderConfig = flag.String("federation-reader-config", "", "Federation reader worker config")
+	federationReaderURLStr = flag.String("federation-reader-url", "", "The HTTP URL that the federation reader will listen on")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
@@ -173,6 +175,14 @@ func main() {
 		}
 	}
 
+	var federationReaderURL *url.URL
+	if *federationReaderURLStr != "" {
+		federationReaderURL, err = url.Parse(*federationReaderURLStr)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	var synapseLog = log.WithFields(log.Fields{
 		"processURL": synapseURL.String(),
 	})
@@ -235,6 +245,22 @@ func main() {
 			defer cleanup()
 		}
 
+		if *federationReaderConfig != "" {
+			processLog, cleanup, err := startProcess(
+				"federationReader", federationReaderURL, terminate,
+				*synapsePython,
+				"-m", "synapse.app.federation_reader",
+				"-c", *synapseConfig,
+				"-c", *federationReaderConfig,
+			)
+
+			if err != nil {
+				processLog.Panic(err)
+			}
+
+			defer cleanup()
+		}
+
 		synapseLog.Print("Synapse started")
 	} else {
 		synapseLog.Print("Using existing synapse")
@@ -277,6 +303,21 @@ func main() {
 		)
 		mux.Handle("/_matrix/client/v2_alpha/sync", synchrotronFunc)
 		mux.Handle("/_matrix/client/r0/sync", synchrotronFunc)
+	}
+
+	if federationReaderURL != nil {
+		federationReaderReverseProxy := proxy.MeasureByPath(
+			proxyMetrics,
+			httputil.NewSingleHostReverseProxy(federationReaderURL).ServeHTTP,
+		)
+		federationReaderFunc := prometheus.InstrumentHandler(
+			"federationReader", federationReaderReverseProxy,
+		)
+		mux.Handle("/_matrix/federation/v1/event/", federationReaderFunc)
+		mux.Handle("/_matrix/federation/v1/state/", federationReaderFunc)
+		mux.Handle("/_matrix/federation/v1/backfill/", federationReaderFunc)
+		mux.Handle("/_matrix/federation/v1/get_missing_events/", federationReaderFunc)
+		mux.Handle("/_matrix/federation/v1/publicRooms", federationReaderFunc)
 	}
 
 	mux.HandleFunc("/_dendron/test", func(w http.ResponseWriter, req *http.Request) {
