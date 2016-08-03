@@ -1,4 +1,6 @@
-#!/bin/bash -eu
+#!/bin/bash
+
+set -eux
 
 ./jenkins/build_dendron.sh
 ./jenkins/test_dendron.sh
