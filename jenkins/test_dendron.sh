@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -u
+set -ux
 
 cd "`dirname $0`/.."
 
