@@ -1,4 +1,8 @@
-#!/bin/bash -u
+#!/bin/bash
+
+set -u
+
+cd "`dirname $0`/.."
 
 : ${GOPATH:=${WORKSPACE}/.gopath}
 if [[ "${GOPATH}" != *:* ]]; then
