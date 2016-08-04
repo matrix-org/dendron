@@ -12,5 +12,5 @@ fi
 export GOPATH
 
 go get github.com/constabulary/gb/...
-gb generate
+gb generate github.com/matrix-org/dendron/proxy
 gb build
