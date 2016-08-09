@@ -298,6 +298,7 @@ func main() {
 		)
 		mux.Handle("/_matrix/federation/v1/event/", federationReaderFunc)
 		mux.Handle("/_matrix/federation/v1/state/", federationReaderFunc)
+		mux.Handle("/_matrix/federation/v1/state_ids/", federationReaderFunc)
 		mux.Handle("/_matrix/federation/v1/backfill/", federationReaderFunc)
 		mux.Handle("/_matrix/federation/v1/get_missing_events/", federationReaderFunc)
 		mux.Handle("/_matrix/federation/v1/publicRooms", federationReaderFunc)
