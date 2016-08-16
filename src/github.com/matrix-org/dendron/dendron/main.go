@@ -286,6 +286,8 @@ func main() {
 		)
 		mux.Handle("/_matrix/client/v2_alpha/sync", synchrotronFunc)
 		mux.Handle("/_matrix/client/r0/sync", synchrotronFunc)
+		mux.Handle("/_matrix/client/r0/events", synchrotronFunc)
+		mux.Handle("/_matrix/client/api/v1/events", synchrotronFunc)
 	}
 
 	if federationReaderURL != nil {
