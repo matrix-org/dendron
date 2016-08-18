@@ -42,6 +42,7 @@ var (
 	listenCertFile         = flag.String("cert-file", "", "TLS Certificate. This must match the tls_certificate_path configured for synapse.")
 	listenKeyFile          = flag.String("key-file", "", "TLS Private Key. The private key for the certificate. This must be set if listening for HTTPS requests")
 	pusherConfig           = flag.String("pusher-config", "", "Pusher worker config")
+	appserviceConfig       = flag.String("appservice-config", "", "Appservice worker config")
 	synchrotronConfig      = flag.String("synchrotron-config", "", "Synchrotron worker config")
 	synchrotronURLStr      = flag.String("synchrotron-url", "", "Comma separated list of HTTP URLs that the synchrotron will listen on")
 	federationReaderConfig = flag.String("federation-reader-config", "", "Federation reader worker config")
@@ -232,6 +233,22 @@ func main() {
 				"-m", "synapse.app.pusher",
 				"-c", *synapseConfig,
 				"-c", *pusherConfig,
+			)
+
+			if err != nil {
+				processLog.Panic(err)
+			}
+
+			defer cleanup()
+		}
+
+		if *appserviceConfig != "" {
+			processLog, cleanup, err := startProcess(
+				"appservice", nil, terminate,
+				*synapsePython,
+				"-m", "synapse.app.appservice",
+				"-c", *synapseConfig,
+				"-c", *appserviceConfig,
 			)
 
 			if err != nil {
