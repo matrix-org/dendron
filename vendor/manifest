@@ -94,6 +94,12 @@
 			"branch": "master"
 		},
 		{
+			"importpath": "github.com/serialx/hashring",
+			"repository": "https://github.com/serialx/hashring",
+			"revision": "75d57fa264ad17fd929304dfdb02c8e278c5c01c",
+			"branch": "master"
+		},
+		{
 			"importpath": "golang.org/x/crypto/bcrypt",
 			"repository": "https://go.googlesource.com/crypto",
 			"revision": "3760e016850398b85094c4c99e955b8c3dea5711",
