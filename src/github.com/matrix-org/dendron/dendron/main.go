@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 
 	"github.com/matrix-org/dugong"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/serialx/hashring"
 )
 
 var (
@@ -41,7 +43,7 @@ var (
 	listenKeyFile          = flag.String("key-file", "", "TLS Private Key. The private key for the certificate. This must be set if listening for HTTPS requests")
 	pusherConfig           = flag.String("pusher-config", "", "Pusher worker config")
 	synchrotronConfig      = flag.String("synchrotron-config", "", "Synchrotron worker config")
-	synchrotronURLStr      = flag.String("synchrotron-url", "", "The HTTP URL that the synchrotron will listen on")
+	synchrotronURLStr      = flag.String("synchrotron-url", "", "Comma separated list of HTTP URLs that the synchrotron will listen on")
 	federationReaderConfig = flag.String("federation-reader-config", "", "Federation reader worker config")
 	federationReaderURLStr = flag.String("federation-reader-url", "", "The HTTP URL that the federation reader will listen on")
 	mediaRepositoryConfig  = flag.String("media-repository-config", "", "Media repository worker config")
@@ -165,11 +167,15 @@ func main() {
 		panic(err)
 	}
 
+	var synchrotronURLs []string
 	var synchrotronURL *url.URL
 	if *synchrotronURLStr != "" {
-		synchrotronURL, err = url.Parse(*synchrotronURLStr)
-		if err != nil {
-			panic(err)
+		synchrotronURLs = strings.Split(*synchrotronURLStr, ",")
+		for _, urlStr := range synchrotronURLs {
+			synchrotronURL, err = url.Parse(urlStr)
+			if err != nil {
+				panic(err)
+			}
 		}
 	}
 
@@ -302,18 +308,39 @@ func main() {
 	mux.Handle("/", proxyFunc)
 	mux.Handle("/_matrix/client/versions", versionsFunc)
 
-	if synchrotronURL != nil {
-		synchrotronReverseProxy := proxy.MeasureByPath(
-			proxyMetrics,
-			httputil.NewSingleHostReverseProxy(synchrotronURL).ServeHTTP,
-		)
-		synchrotronFunc := prometheus.InstrumentHandler(
-			"synchrotron", synchrotronReverseProxy,
-		)
-		mux.Handle("/_matrix/client/v2_alpha/sync", synchrotronFunc)
-		mux.Handle("/_matrix/client/r0/sync", synchrotronFunc)
-		mux.Handle("/_matrix/client/r0/events", synchrotronFunc)
-		mux.Handle("/_matrix/client/api/v1/events", synchrotronFunc)
+	if synchrotronURLs != nil {
+		ring := hashring.New(synchrotronURLs)
+		proxies := make(map[string]http.HandlerFunc)
+		for _, urlStr := range synchrotronURLs {
+			synchrotronURL, err := url.Parse(urlStr)
+			if err != nil {
+				panic(err)
+			}
+			synchrotronReverseProxy := proxy.MeasureByPath(
+				proxyMetrics,
+				httputil.NewSingleHostReverseProxy(synchrotronURL).ServeHTTP,
+			)
+			synchrotronFunc := prometheus.InstrumentHandler(
+				"synchrotron", synchrotronReverseProxy,
+			)
+			proxies[urlStr] = synchrotronFunc
+		}
+
+		balancerFunc := func(w http.ResponseWriter, req *http.Request) {
+			key := req.URL.Query().Get("access_token")
+			node, ok := ring.GetNode(key)
+			if !ok {
+				req.Body.Close()
+				w.WriteHeader(503)
+				w.Write([]byte("No backend synchrotron available"))
+				return
+			}
+			proxies[node](w, req)
+		}
+		mux.HandleFunc("/_matrix/client/v2_alpha/sync", balancerFunc)
+		mux.HandleFunc("/_matrix/client/r0/sync", balancerFunc)
+		mux.HandleFunc("/_matrix/client/r0/events", balancerFunc)
+		mux.HandleFunc("/_matrix/client/api/v1/events", balancerFunc)
 	}
 
 	if federationReaderURL != nil {
