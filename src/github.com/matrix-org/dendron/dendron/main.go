@@ -44,6 +44,8 @@ var (
 	synchrotronURLStr      = flag.String("synchrotron-url", "", "The HTTP URL that the synchrotron will listen on")
 	federationReaderConfig = flag.String("federation-reader-config", "", "Federation reader worker config")
 	federationReaderURLStr = flag.String("federation-reader-url", "", "The HTTP URL that the federation reader will listen on")
+	mediaRepositoryConfig  = flag.String("media-repository-config", "", "Media repository worker config")
+	mediaRepositoryURLStr  = flag.String("media-repository-url", "", "The HTTP URL that the media repository will listen on")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
@@ -179,6 +181,14 @@ func main() {
 		}
 	}
 
+	var mediaRepositoryURL *url.URL
+	if *mediaRepositoryURLStr != "" {
+		mediaRepositoryURL, err = url.Parse(*mediaRepositoryURLStr)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	var synapseLog = log.WithFields(log.Fields{
 		"processURL": synapseURL.String(),
 	})
@@ -257,6 +267,22 @@ func main() {
 			defer cleanup()
 		}
 
+		if *mediaRepositoryConfig != "" {
+			processLog, cleanup, err := startProcess(
+				"mediaRepository", mediaRepositoryURL, terminate,
+				*synapsePython,
+				"-m", "synapse.app.media_repository",
+				"-c", *synapseConfig,
+				"-c", *mediaRepositoryConfig,
+			)
+
+			if err != nil {
+				processLog.Panic(err)
+			}
+
+			defer cleanup()
+		}
+
 		synapseLog.Print("Synapse started")
 	} else {
 		synapseLog.Print("Using existing synapse")
@@ -301,6 +327,17 @@ func main() {
 		mux.Handle("/_matrix/federation/v1/backfill/", federationReaderFunc)
 		mux.Handle("/_matrix/federation/v1/get_missing_events/", federationReaderFunc)
 		mux.Handle("/_matrix/federation/v1/publicRooms", federationReaderFunc)
+	}
+
+	if mediaRepositoryURL != nil {
+		mediaRepostioryReverseProxy := proxy.MeasureByPath(
+			proxyMetrics,
+			httputil.NewSingleHostReverseProxy(mediaRepositoryURL).ServeHTTP,
+		)
+		mediaRepositoryFunc := prometheus.InstrumentHandler(
+			"mediaRepository", mediaRepostioryReverseProxy,
+		)
+		mux.Handle("/_matrix/media/", mediaRepositoryFunc)
 	}
 
 	mux.HandleFunc("/_dendron/test", func(w http.ResponseWriter, req *http.Request) {
