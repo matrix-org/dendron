@@ -49,6 +49,8 @@ var (
 	federationReaderURLStr = flag.String("federation-reader-url", "", "The HTTP URL that the federation reader will listen on")
 	mediaRepositoryConfig  = flag.String("media-repository-config", "", "Media repository worker config")
 	mediaRepositoryURLStr  = flag.String("media-repository-url", "", "The HTTP URL that the media repository will listen on")
+	clientReaderConfig     = flag.String("client-reader-config", "", "Client reader worker config")
+	clientReaderURLStr     = flag.String("client-reader-url", "", "The HTTP URL that the client reader will listen on")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
@@ -196,6 +198,14 @@ func main() {
 		}
 	}
 
+	var clientReaderURL *url.URL
+	if *clientReaderURLStr != "" {
+		clientReaderURL, err = url.Parse(*clientReaderURLStr)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	var synapseLog = log.WithFields(log.Fields{
 		"processURL": synapseURL.String(),
 	})
@@ -306,6 +316,22 @@ func main() {
 			defer cleanup()
 		}
 
+		if *clientReaderConfig != "" {
+			processLog, cleanup, err := startProcess(
+				"clientReaderRepository", clientReaderURL, terminate,
+				*synapsePython,
+				"-m", "synapse.app.client_reader",
+				"-c", *synapseConfig,
+				"-c", *clientReaderConfig,
+			)
+
+			if err != nil {
+				processLog.Panic(err)
+			}
+
+			defer cleanup()
+		}
+
 		synapseLog.Print("Synapse started")
 	} else {
 		synapseLog.Print("Using existing synapse")
@@ -385,6 +411,18 @@ func main() {
 			"mediaRepository", mediaRepostioryReverseProxy,
 		)
 		mux.Handle("/_matrix/media/", mediaRepositoryFunc)
+	}
+
+	if clientReaderURL != nil {
+		clientReaderReverseProxy := proxy.MeasureByPath(
+			proxyMetrics,
+			httputil.NewSingleHostReverseProxy(clientReaderURL).ServeHTTP,
+		)
+		clientReaderFunc := prometheus.InstrumentHandler(
+			"clientReader", clientReaderReverseProxy,
+		)
+		mux.Handle("/_matrix/client/r0/publicRooms", clientReaderFunc)
+		mux.Handle("/_matrix/client/api/v1/publicRooms", clientReaderFunc)
 	}
 
 	mux.HandleFunc("/_dendron/test", func(w http.ResponseWriter, req *http.Request) {
