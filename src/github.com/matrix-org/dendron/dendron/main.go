@@ -384,6 +384,8 @@ func main() {
 		mux.HandleFunc("/_matrix/client/r0/sync", balancerFunc)
 		mux.HandleFunc("/_matrix/client/r0/events", balancerFunc)
 		mux.HandleFunc("/_matrix/client/api/v1/events", balancerFunc)
+		mux.HandleFunc("/_matrix/client/api/v1/initialSync", balancerFunc)
+		mux.HandleFunc("/_matrix/client/r0/initialSync", balancerFunc)
 	}
 
 	if federationReaderURL != nil {
