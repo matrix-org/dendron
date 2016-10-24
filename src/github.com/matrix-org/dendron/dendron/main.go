@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"crypto/tls"
 	"flag"
 	"fmt"
@@ -371,6 +372,22 @@ func main() {
 
 		balancerFunc := func(w http.ResponseWriter, req *http.Request) {
 			key := req.URL.Query().Get("access_token")
+			if key == "" {
+				// If there isn't an access_token query string then check for a Authorization header with a Bearer token.
+				auth := req.Header.Get("Authorization")
+				const (
+					BEARER = "Bearer "
+				)
+				if strings.HasPrefix(auth, BEARER) {
+					key = auth[len(BEARER):]
+				}
+			}
+			if key == "" {
+				// If there isn't an access token then pick a backend at random.
+				var randomBytes [8]byte
+				_, _ = rand.Read(randomBytes[:])
+				key = string(randomBytes[:])
+			}
 			node, ok := ring.GetNode(key)
 			if !ok {
 				req.Body.Close()
