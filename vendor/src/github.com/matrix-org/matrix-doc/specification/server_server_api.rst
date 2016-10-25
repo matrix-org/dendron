@@ -1,3 +1,17 @@
+.. Copyright 2016 OpenMarket Ltd
+..
+.. Licensed under the Apache License, Version 2.0 (the "License");
+.. you may not use this file except in compliance with the License.
+.. You may obtain a copy of the License at
+..
+..     http://www.apache.org/licenses/LICENSE-2.0
+..
+.. Unless required by applicable law or agreed to in writing, software
+.. distributed under the License is distributed on an "AS IS" BASIS,
+.. WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+.. See the License for the specific language governing permissions and
+.. limitations under the License.
+
 Federation API
 ==============
 
@@ -43,6 +57,13 @@ request.
 
 .. contents:: Table of Contents
 .. sectnum::
+
+Specification version
+---------------------
+
+This version of the specification is generated from
+`matrix-doc <https://github.com/matrix-org/matrix-doc>`_ as of Git commit
+`{{git_version}} <https://github.com/matrix-org/matrix-doc/tree/{{git_rev}}>`_.
 
 Server Discovery
 ----------------
@@ -188,9 +209,9 @@ servers. Either way the response is a list of JSON objects containing the
 JSON published by the server under ``_matrix/key/v2/server/`` signed by
 both the originating server and by this server.
 
-The ``minimum_valid_until_ts`` is a millisecond POSIX timestamp indicating 
-when the returned certificate will need to be valid until to be useful to the 
-requesting server. This can be set using the maximum ``origin_server_ts`` of 
+The ``minimum_valid_until_ts`` is a millisecond POSIX timestamp indicating
+when the returned certificate will need to be valid until to be useful to the
+requesting server. This can be set using the maximum ``origin_server_ts`` of
 an batch of events that a requesting server is trying to validate. This allows
 an intermediate notary server to give a prompt cached response even if the
 originating server is offline.
@@ -832,7 +853,7 @@ State Conflict Resolution
 -------------------------
 .. NOTE::
   This section is a work in progress.
-  
+
 .. TODO-doc
   - How do conflicts arise (diagrams?)
   - How are they resolved (incl tie breaks)
@@ -954,3 +975,26 @@ the given room; these are servers that the requesting server may wish to use as
 resident servers as part of the remote join handshake. This list may or may not
 include the server answering the query.
 
+Send-to-device messaging
+------------------------
+
+.. TODO: add modules to the federation spec and make this a module
+
+The server API for send-to-device messaging is based on the following
+EDU. There are no PDUs or Federation Queries involved.
+
+Each send-to-device message should be sent to the destination server using
+the following EDU::
+
+  EDU type: m.direct_to_device
+
+  Content keys:
+    sender: user ID of the sender
+
+    type: event type for the message
+
+    message_id: unique id for the message: used for idempotence
+
+    messages: The messages to send. A map from user ID, to a map from device ID
+        to message body. The device ID may also be *, meaning all known devices
+        for the user.

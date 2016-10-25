@@ -1,3 +1,17 @@
+.. Copyright 2016 OpenMarket Ltd
+..
+.. Licensed under the Apache License, Version 2.0 (the "License");
+.. you may not use this file except in compliance with the License.
+.. You may obtain a copy of the License at
+..
+..     http://www.apache.org/licenses/LICENSE-2.0
+..
+.. Unless required by applicable law or agreed to in writing, software
+.. distributed under the License is distributed on an "AS IS" BASIS,
+.. WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+.. See the License for the specific language governing permissions and
+.. limitations under the License.
+
 Application Service API
 =======================
 
@@ -14,6 +28,13 @@ irrespective of the underlying homeserver implementation.
 
 .. contents:: Table of Contents
 .. sectnum::
+
+Specification version
+---------------------
+
+This version of the specification is generated from
+`matrix-doc <https://github.com/matrix-org/matrix-doc>`_ as of Git commit
+`{{git_version}} <https://github.com/matrix-org/matrix-doc/tree/{{git_rev}}>`_.
 
 Application Services
 --------------------
@@ -48,9 +69,9 @@ Application services register "namespaces" of user IDs, room aliases and room ID
 These namespaces are represented as regular expressions. An application service
 is said to be "interested" in a given event if one of the IDs in the event match
 the regular expression provided by the application service. An application
-service can also state whether they should be the only ones who 
-can manage a specified namespace. This is referred to as an "exclusive" 
-namespace. An exclusive namespace prevents humans and other application 
+service can also state whether they should be the only ones who
+can manage a specified namespace. This is referred to as an "exclusive"
+namespace. An exclusive namespace prevents humans and other application
 services from creating/deleting entities in that namespace. Typically,
 exclusive namespaces are used when the rooms represent real rooms on
 another service (e.g. IRC). Non-exclusive namespaces are used when the
@@ -104,12 +125,12 @@ events. Each list of events includes a transaction ID, which works as follows:
  Typical
  HS ---> AS : Homeserver sends events with transaction ID T.
     <---    : AS sends back 200 OK.
-    
+
  AS ACK Lost
  HS ---> AS : Homeserver sends events with transaction ID T.
     <-/-    : AS 200 OK is lost.
  HS ---> AS : Homeserver retries with the same transaction ID of T.
-    <---    : AS sends back 200 OK. If the AS had processed these events 
+    <---    : AS sends back 200 OK. If the AS had processed these events
               already, it can NO-OP this request (and it knows if it is the same
               events based on the transaction ID).
 
@@ -149,7 +170,7 @@ HTTP APIs
 This contains application service APIs which are used by the homeserver. All
 application services MUST implement these APIs. These APIs are defined below.
 
-{{application_service_http_api}}
+{{application_service_as_http_api}}
 
 
 .. _create the user: `sect:asapi-permissions`_
@@ -163,11 +184,11 @@ homeserver.
 
 Identity assertion
 ++++++++++++++++++
-The client-server API infers the user ID from the ``access_token`` provided in 
+The client-server API infers the user ID from the ``access_token`` provided in
 every request. It would be an annoying amount of book-keeping to maintain tokens
 for every virtual user. It would be preferable if the application service could
 use the CS API with its own ``as_token`` instead, and specify the virtual user
-they wish to be acting on behalf of. For real users, this would require 
+they wish to be acting on behalf of. For real users, this would require
 additional permissions granting the AS permission to masquerade as a matrix user.
 
 Inputs:
@@ -177,7 +198,7 @@ Inputs:
 Notes:
  - This will apply on all aspects of the CS API, except for Account Management.
  - The ``as_token`` is inserted into ``access_token`` which is usually where the
-   client token is. This is done on purpose to allow application services to 
+   client token is. This is done on purpose to allow application services to
    reuse client SDKs.
 
 ::
@@ -187,7 +208,7 @@ Notes:
  Query Parameters:
    access_token: The application service token
    user_id: The desired user ID to act as.
-   
+
 Timestamp massaging
 +++++++++++++++++++
 The application service may want to inject events at a certain time (reflecting
@@ -199,7 +220,7 @@ Inputs:
  - Desired timestamp
 Notes:
  - This will only apply when sending events.
- 
+
 ::
 
  /path?access_token=$token&ts=$timestamp
@@ -230,11 +251,11 @@ including the AS token on a ``/register`` request, along with a login type of
 ::
 
   /register?access_token=$as_token
-  
+
   Content:
   {
     type: "m.login.application_service",
-    user: "<desired user localpart in AS namespace>"
+    username: "<desired user localpart in AS namespace>"
   }
 
 Application services which attempt to create users or aliases *outside* of
@@ -278,12 +299,12 @@ at the cost of an extra round trip (of which the response can be cached).
 Munging the URI would allow clients to apply the mapping locally, but would force
 user X on service Y to always map to the same munged user ID. Considering the
 exposed API could just be applying this munging, there is more flexibility if
-an API is exposed. 
+an API is exposed.
 
 ::
 
   GET /_matrix/app/%CLIENT_MAJOR_VERSION%/user?uri=$url_encoded_uri
-  
+
   Returns 200 OK:
   {
     user_id: <complete user ID on local HS>
@@ -297,22 +318,22 @@ e.g. IRC rooms. We don't want to expose every 3P network room though, e.g.
 exposed as an alias by the application service. Private rooms
 (e.g. sending an email to someone) should not
 be exposed in this way, but should instead operate using normal invite/join semantics.
-Therefore, the ID conventions discussed below are only valid for public rooms which 
+Therefore, the ID conventions discussed below are only valid for public rooms which
 expose room aliases.
 
 Matrix users may wish to join XMPP rooms (e.g. using XEP-0045) or IRC rooms. In both
-cases, these rooms can be expressed as URIs. For consistency, these "room" URIs 
+cases, these rooms can be expressed as URIs. For consistency, these "room" URIs
 SHOULD be mapped in the same way as "user" URIs.
 
 ::
 
   GET /_matrix/app/%CLIENT_MAJOR_VERSION%/alias?uri=$url_encoded_uri
-  
+
   Returns 200 OK:
   {
     alias: <complete room alias on local HS>
   }
-  
+
 Event fields
 ++++++++++++
 We recommend that any events that originated from a remote network should
@@ -320,4 +341,3 @@ include an ``external_url`` field in their content to provide a way for Matrix
 clients to link into the 'native' client from which the event originated.
 For instance, this could contain the message-ID for emails/nntp posts, or a link
 to a blog comment when bridging blog comment traffic in & out of Matrix.
-

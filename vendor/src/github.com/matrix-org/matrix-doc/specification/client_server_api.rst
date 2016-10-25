@@ -1,3 +1,17 @@
+.. Copyright 2016 OpenMarket Ltd
+..
+.. Licensed under the Apache License, Version 2.0 (the "License");
+.. you may not use this file except in compliance with the License.
+.. You may obtain a copy of the License at
+..
+..     http://www.apache.org/licenses/LICENSE-2.0
+..
+.. Unless required by applicable law or agreed to in writing, software
+.. distributed under the License is distributed on an "AS IS" BASIS,
+.. WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+.. See the License for the specific language governing permissions and
+.. limitations under the License.
+
 Client-Server API
 =================
 
@@ -16,11 +30,28 @@ Changelog
 .. topic:: Version: %CLIENT_RELEASE_LABEL%
 {{client_server_changelog}}
 
+This version of the specification is generated from
+`matrix-doc <https://github.com/matrix-org/matrix-doc>`_ as of Git commit
+`{{git_version}} <https://github.com/matrix-org/matrix-doc/tree/{{git_rev}}>`_.
+
 For the full historical changelog, see
 https://github.com/matrix-org/matrix-doc/blob/master/changelogs/client_server.rst
 
 If this is an unstable snapshot, any changes since the last release may be
 viewed using ``git log``.
+
+Other versions of this specification
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The following other versions are also available, in reverse chronological order:
+
+- `HEAD <http://matrix.org/speculator/spec/HEAD/client_server/unstable.html>`_: Includes all changes since the latest versioned release.
+- `r0.2.0 <https://matrix.org/docs/spec/client_server/r0.2.0.html>`_
+- `r0.1.0 <https://matrix.org/docs/spec/client_server/r0.1.0.html>`_
+- `r0.0.1 <https://matrix.org/docs/spec/r0.0.1/client_server.html>`_
+- `r0.0.0 <https://matrix.org/docs/spec/r0.0.0/client_server.html>`_
+- `Legacy <https://matrix.org/docs/spec/legacy/#client-server-api>`_: The last draft before the spec was formally released in version r0.0.0.
+
 
 API Standards
 -------------
@@ -40,6 +71,16 @@ API calls use a Content-Type of ``application/json``.  In addition, all strings
 MUST be encoded as UTF-8. Clients are authenticated using opaque
 ``access_token`` strings (see `Client Authentication`_ for details), passed as a
 query string parameter on all requests.
+
+The names of the API endponts for the HTTP transport follow a convention of
+using underscores to separate words (for example ``/delete_devices``). The key
+names in JSON objects passed over the API also follow this convention.
+
+.. NOTE::
+   There are a few historical exceptions to this rule, such as
+   ``/createRoom``. A future version of this specification will address the
+   inconsistency.
+
 
 Any errors which occur at the Matrix API level MUST return a "standard error
 response". This is a JSON object which looks like:
@@ -92,10 +133,22 @@ Some requests have unique error codes:
   Encountered when trying to register a user ID which is not valid.
 
 :``M_ROOM_IN_USE``:
-  Encountered when trying to create a room which has been taken.
+  Sent when the room alias given to the ``createRoom`` API is already in use.
+
+:``M_INVALID_ROOM_STATE``:
+  Sent when the intial state given to the ``createRoom`` API is invalid.
 
 :``M_BAD_PAGINATION``:
   Encountered when specifying bad pagination query parameters.
+
+:``M_THREEPID_IN_USE``:
+  Sent when a threepid given to an API cannot be used because the same threepid is already in use.
+
+:``M_THREEPID_NOT_FOUND``:
+  Sent when a threepid given to an API cannot be used because no record matching the threepid was found.
+
+:``M_SERVER_NOT_TRUSTED``:
+  The client's request used a third party server, eg. ID server, that this server does not trust.
 
 .. _sect:txn_ids:
 
@@ -111,24 +164,34 @@ Some API endpoints may allow or require the use of ``POST`` requests without a
 transaction ID. Where this is optional, the use of a ``PUT`` request is strongly
 recommended.
 
-{{versions_http_api}}
+{{versions_cs_http_api}}
 
 Client Authentication
 ---------------------
+
 Most API endpoints require the user to identify themselves by presenting
 previously obtained credentials in the form of an ``access_token`` query
-parameter.
+parameter. An access token is typically obtained via the `Login`_ or
+`Registration`_ processes.
 
 When credentials are required but missing or invalid, the HTTP call will
 return with a status of 401 and the error code, ``M_MISSING_TOKEN`` or
 ``M_UNKNOWN_TOKEN`` respectively.
 
+.. NOTE::
+
+   This specification does not mandate a particular format for the access
+   token. Clients should treat it as an opaque byte sequence. Servers are free
+   to choose an appropriate format. Server implementors may like to investigate
+   `macaroons <macaroon_>`_.
+
 User-Interactive Authentication API
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. _sect:auth-api:
+Overview
+<<<<<<<<
 
-Some API endpoints such as ``login`` or ``register`` require authentication that
+Some API endpoints require authentication that
 interacts with the user. The homeserver may provide many different ways of
 authenticating, such as user/password auth, login via a social network (OAuth2),
 login by confirming a token sent to their email address, etc. This specification
@@ -136,26 +199,31 @@ does not define how homeservers should authorise their users but instead
 defines the standard interface which implementations should follow so that ANY
 client can login to ANY homeserver.
 
-The process takes the form of one or more stages, where at each stage the client
-submits a set of data for a given stage type and awaits a response from the
-server, which will either be a final success or a request to perform an
-additional stage. This exchange continues until the final success.
+The process takes the form of one or more 'stages'. At each stage the client
+submits a set of data for a given authentication type and awaits a response
+from the server, which will either be a final success or a request to perform
+an additional stage. This exchange continues until the final success.
 
-Authentication works by client and server exchanging dictionaries. This
-specification covers how this is done over JSON HTTP POST.
+For each endpoint, a server offers one or more 'flows' that the client can use
+to authenticate itself. Each flow comprises a series of stages, as described
+above. The client is free to choose which flow it follows. When all stages in a
+flow are complete, authentication is complete and the API call succeeds.
 
-For each endpoint, a server offers one of more 'flows' that the client can use
-to authenticate itself. Each flow comprises one or more 'stages'. Flows may have
-more than one stage to implement n-factor auth. When all stages are complete,
-authentication is complete and the API call succeeds. To establish what flows a
-server supports for an endpoint, a client sends the request with no
-authentication. A request to an endpoint that uses User-Interactive
-Authentication never succeeds without auth. Homeservers may allow requests that
-don't require auth by offering a stage with only the ``m.login.dummy`` auth
-type. The homeserver returns a response with HTTP status 401 and a JSON object
-as follows:
+User-interactive API in the REST API
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-.. code:: json
+In the REST API described in this specification, authentication works by the
+client and server exchanging JSON dictionaries. The server indicates what
+authentication data it requires via the body of an HTTP 401 response, and the
+client submits that authentication data via the ``auth`` request parameter.
+
+A client should first make a request with no ``auth`` parameter [#]_. The
+homeserver returns an HTTP 401 response, with a JSON body, as follows:
+
+.. code::
+
+  HTTP/1.1 401 Unauthorized
+  Content-Type: application/json
 
   {
     "flows": [
@@ -179,7 +247,7 @@ information:
 
 params
   This section contains any information that the client will need to know in
-  order to use a given type of authentication. For each login stage type
+  order to use a given type of authentication. For each authentication type
   presented, that type may be present as a key in this dictionary. For example,
   the public part of an OAuth client ID could be given here.
 session
@@ -188,15 +256,18 @@ session
   API call.
 
 The client then chooses a flow and attempts to complete one of the stages. It
-does this by resubmitting the same request with the the addition of an 'auth'
+does this by resubmitting the same request with the addition of an ``auth``
 key in the object that it submits. This dictionary contains a ``type`` key whose
-value is the name of the stage type that the client is attempting to complete.
-It must also contains a ``session`` key with the value of the session key given
+value is the name of the authentication type that the client is attempting to complete.
+It must also contain a ``session`` key with the value of the session key given
 by the homeserver, if one was given. It also contains other keys dependent on
-the stage type being attempted. For example, if the client is attempting to
-complete login type ``example.type.foo``, it might submit something like this:
+the auth type being attempted. For example, if the client is attempting to
+complete auth type ``example.type.foo``, it might submit something like this:
 
-.. code:: json
+.. code::
+
+  POST /_matrix/client/r0/endpoint HTTP/1.1
+  Content-Type: application/json
 
   {
     "a_request_parameter": "something",
@@ -211,10 +282,13 @@ complete login type ``example.type.foo``, it might submit something like this:
 If the homeserver deems the authentication attempt to be successful but still
 requires more stages to be completed, it returns HTTP status 401 along with the
 same object as when no authentication was attempted, with the addition of the
-``completed`` key which is an array of stage type the client has completed
+``completed`` key which is an array of auth types the client has completed
 successfully:
 
-.. code:: json
+.. code::
+
+  HTTP/1.1 401 Unauthorized
+  Content-Type: application/json
 
   {
     "completed": [ "example.type.foo" ],
@@ -234,19 +308,52 @@ successfully:
     "session": "xxxxxx"
   }
 
-If the homeserver decides the attempt was unsuccessful, it returns an error
-message in the standard format:
+Individual stages may require more than one request to complete, in which case
+the response will be as if the request was unauthenticated with the addition of
+any other keys as defined by the auth type.
 
-.. code:: json
+If the homeserver decides that an attempt on a stage was unsuccessful, but the
+client may make a second attempt, it returns the same HTTP status 401 response
+as above, with the addition of the standard ``errcode`` and ``error`` fields
+describing the error. For example:
+
+.. code::
+
+  HTTP/1.1 401 Unauthorized
+  Content-Type: application/json
+
+  {
+    "errcode": "M_FORBIDDEN",
+    "error": "Invalid password",
+    "completed": [ "example.type.foo" ],
+    "flows": [
+      {
+        "stages": [ "example.type.foo", "example.type.bar" ]
+      },
+      {
+        "stages": [ "example.type.foo", "example.type.baz" ]
+      }
+    ],
+    "params": {
+        "example.type.baz": {
+            "example_key": "foobar"
+        }
+    },
+    "session": "xxxxxx"
+  }
+
+If the request fails for a reason other than authentication, the server returns an error
+message in the standard format. For example:
+
+.. code::
+
+  HTTP/1.1 400 Bad request
+  Content-Type: application/json
 
   {
     "errcode": "M_EXAMPLE_ERROR",
     "error": "Something was wrong"
   }
-
-Individual stages may require more than one request to complete, in which case
-the response will be as if the request was unauthenticated with the addition of
-any other keys as defined by the login type.
 
 If the client has completed all stages of a flow, the homeserver performs the
 API call and returns the result as normal.
@@ -257,27 +364,38 @@ clicks on the link in the email. In this case, the client retries the request
 with an auth dict containing only the session key. The response to this will be
 the same as if the client were attempting to complete an auth state normally,
 i.e. the request will either complete or request auth, with the presence or
-absence of that login stage type in the 'completed' array indicating whether
+absence of that auth type in the 'completed' array indicating whether
 that stage is complete.
+
+.. [#] A request to an endpoint that uses User-Interactive Authentication never
+       succeeds without auth. Homeservers may allow requests that don't require
+       auth by offering a stage with only the ``m.login.dummy`` auth type, but
+       they must still give a 401 response to requests with no auth data.
 
 Example
 +++++++
 At a high level, the requests made for an API call completing an auth flow with
 three stages will resemble the following diagram::
-  
+
    _______________________
-  |       Stage 1         |
-  | type: "<stage type1>" |
+  |       Stage 0         |
+  | No auth               |
   |  ___________________  |
   | |_Request_1_________| | <-- Returns "session" key which is used throughout.
+  |_______________________|
+            |
+            |
+   _________V_____________
+  |       Stage 1         |
+  | type: "<auth type1>"  |
   |  ___________________  |
-  | |_Request_2_________| |
+  | |_Request_1_________| |
   |_______________________|
             |
             |
    _________V_____________
   |       Stage 2         |
-  | type: "<stage type2>" |
+  | type: "<auth type2>"  |
   |  ___________________  |
   | |_Request_1_________| |
   |  ___________________  |
@@ -289,12 +407,16 @@ three stages will resemble the following diagram::
             |
    _________V_____________
   |       Stage 3         |
-  | type: "<stage type3>" |
+  | type: "<auth type3>"  |
   |  ___________________  |
   | |_Request_1_________| | <-- Returns API response
   |_______________________|
 
-This specification defines the following login types:
+
+Authentication types
+++++++++++++++++++++
+
+This specification defines the following auth types:
  - ``m.login.password``
  - ``m.login.recaptcha``
  - ``m.login.oauth2``
@@ -303,20 +425,21 @@ This specification defines the following login types:
  - ``m.login.dummy``
 
 Password-based
-++++++++++++++
+<<<<<<<<<<<<<<
 :Type:
   ``m.login.password``
 :Description:
   The client submits a username and secret password, both sent in plain-text.
 
-To respond to this type, reply with an auth dict as follows:
+To use this authentication type, clients should submit an auth dict as follows:
 
 .. code:: json
 
   {
     "type": "m.login.password",
     "user": "<user_id or user localpart>",
-    "password": "<password>"
+    "password": "<password>",
+    "session": "<session ID>"
   }
 
 Alternatively reply using a 3pid bound to the user's account on the homeserver
@@ -329,50 +452,46 @@ follows:
     "type": "m.login.password",
     "medium": "<The medium of the third party identifier. Must be 'email'>",
     "address": "<The third party address of the user>",
-    "password": "<password>"
+    "password": "<password>",
+    "session": "<session ID>"
   }
 
 In the case that the homeserver does not know about the supplied 3pid, the
 homeserver must respond with 403 Forbidden.
 
-.. WARNING::
-  Clients SHOULD enforce that the password provided is suitably complex. The
-  password SHOULD include a lower-case letter, an upper-case letter, a number
-  and a symbol and be at a minimum 8 characters in length. Servers MAY reject
-  weak passwords with an error code ``M_WEAK_PASSWORD``.
-
 Google ReCaptcha
-++++++++++++++++
+<<<<<<<<<<<<<<<<
 :Type:
   ``m.login.recaptcha``
 :Description:
   The user completes a Google ReCaptcha 2.0 challenge
 
-To respond to this type, reply with an auth dict as follows:
+To use this authentication type, clients should submit an auth dict as follows:
 
 .. code:: json
 
   {
     "type": "m.login.recaptcha",
-    "response": "<captcha response>"
+    "response": "<captcha response>",
+    "session": "<session ID>"
   }
 
 Token-based
-+++++++++++
+<<<<<<<<<<<
 :Type:
   ``m.login.token``
 :Description:
-  The client submits a username and token.
+  The client submits a login token.
 
-To respond to this type, reply with an auth dict as follows:
+To use this authentication type, clients should submit an auth dict as follows:
 
 .. code:: json
 
   {
     "type": "m.login.token",
-    "user": "<user_id or user localpart>",
     "token": "<token>",
-    "txn_id": "<client generated nonce>"
+    "txn_id": "<client generated nonce>",
+    "session": "<session ID>"
   }
 
 The ``nonce`` should be a random string generated by the client for the
@@ -388,10 +507,11 @@ server side, as well as potentially invalidating the token completely once the
 device has successfully logged in (e.g. when we receive a request from the
 newly provisioned access_token).
 
-The ``token`` must be a macaroon.
+The server must encode the user id in the ``token``. There is therefore no need
+for the client to submit a separate username.
 
 OAuth2-based
-++++++++++++
+<<<<<<<<<<<<
 :Type:
   ``m.login.oauth2``
 :Description:
@@ -415,7 +535,7 @@ the OAuth flow has completed, the client retries the request with the session
 only, as above.
 
 Email-based (identity server)
-+++++++++++++++++++++++++++++
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 :Type:
   ``m.login.email.identity``
 :Description:
@@ -426,7 +546,7 @@ Prior to submitting this, the client should authenticate with an identity
 server. After authenticating, the session information should be submitted to
 the homeserver.
 
-To respond to this type, reply with an auth dict as follows:
+To use this authentication type, clients should submit an auth dict as follows:
 
 .. code:: json
 
@@ -438,11 +558,12 @@ To respond to this type, reply with an auth dict as follows:
         "client_secret": "<identity server client secret>",
         "id_server": "<url of identity server authed with, e.g. 'matrix.org:8090'>"
       }
-    ]
+    ],
+    "session": "<session ID>"
   }
 
 Dummy Auth
-++++++++++
+<<<<<<<<<<
 :Type:
   ``m.login.dummy``
 :Description:
@@ -450,13 +571,14 @@ Dummy Auth
   purpose is to allow servers to not require any form of User-Interactive
   Authentication to perform a request.
 
-To respond to this type, reply with an auth dict with just the type and session,
-if provided:
+To use this authentication type, clients should submit an auth dict with just
+the type and session, if provided:
 
 .. code:: json
 
   {
-    "type": "m.login.dummy"
+    "type": "m.login.dummy",
+    "session": "<session ID>"
   }
 
 
@@ -468,25 +590,152 @@ the user to a web browser with the URL of a fallback page which will allow the
 user to complete that login step out-of-band in their web browser. The URL it
 should open is::
 
-  /_matrix/client/%CLIENT_MAJOR_VERSION%/auth/<stage type>/fallback/web?session=<session ID>
+  /_matrix/client/%CLIENT_MAJOR_VERSION%/auth/<auth type>/fallback/web?session=<session ID>
 
-Where ``stage type`` is the type name of the stage it is attempting and
-``session id`` is the ID of the session given by the homeserver.
+Where ``auth type`` is the type name of the stage it is attempting and
+``session ID`` is the ID of the session given by the homeserver.
 
 This MUST return an HTML page which can perform this authentication stage. This
-page must attempt to call the JavaScript function ``window.onAuthDone`` when
-the authentication has been completed.
+page must use the following JavaScript when the authentication has been
+completed:
 
-API calls using the User-Interactive Authentication mechanism
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-.. _User-Interactive Authentication: `sect:auth-api`_
+.. code:: javascript
 
-{{registration_http_api}}
+   if (window.onAuthDone) {
+       window.onAuthDone();
+   } else if (window.opener && window.opener.postMessage) {
+       window.opener.postMessage("authDone", "*");
+   }
 
-{{login_http_api}}
+This allows the client to either arrange for the global function ``onAuthDone``
+to be defined in an embedded browser, or to use the HTML5 `cross-document
+messaging <https://www.w3.org/TR/webmessaging/#web-messaging>`_ API, to receive
+a notification that the authentication stage has been completed.
+
+Once a client receives the notificaton that the authentication stage has been
+completed, it should resubmit the request with an auth dict with just the
+session ID:
+
+.. code:: json
+
+  {
+    "session": "<session ID>"
+  }
+
+
+Example
+<<<<<<<
+A client webapp might use the following javascript to open a popup window which will
+handle unknown login types:
+
+.. code:: javascript
+
+  /**
+   * Arguments:
+   *     homeserverUrl: the base url of the homeserver (eg "https://matrix.org")
+   *
+   *     apiEndpoint: the API endpoint being used (eg
+   *        "/_matrix/client/%CLIENT_MAJOR_VERSION%/account/password")
+   *
+   *     loginType: the loginType being attempted (eg "m.login.recaptcha")
+   *
+   *     sessionID: the session ID given by the homeserver in earlier requests
+   *
+   *     onComplete: a callback which will be called with the results of the request
+   */
+  function unknownLoginType(homeserverUrl, apiEndpoint, loginType, sessionID, onComplete) {
+      var popupWindow;
+
+      var eventListener = function(ev) {
+          // check it's the right message from the right place.
+          if (ev.data !== "authDone" || ev.origin !== homeserverUrl) {
+              return;
+          }
+          
+          // close the popup
+          popupWindow.close();
+          window.removeEventListener("message", eventListener);
+
+          // repeat the request
+          var requestBody = {
+              auth: {
+                  session: sessionID,
+              },
+          };
+
+          request({
+              method:'POST', url:apiEndpint, json:requestBody,
+          }, onComplete);
+      };
+
+      window.addEventListener("message", eventListener);
+
+      var url = homeserverUrl +
+          "/_matrix/client/%CLIENT_MAJOR_VERSION%/auth/" +
+          encodeURIComponent(loginType) +
+          "/fallback/web?session=" +
+          encodeURIComponent(sessionID);
+
+
+     popupWindow = window.open(url);
+  }
+
+
+Login
+~~~~~
+
+A client can obtain access tokens using the ``/login`` API.
+
+Note that this endpoint does `not` currently use the user-interactive
+authentication API.
+
+For a simple username/password login, clients should submit a ``/login``
+request as follows:
+
+.. code:: json
+
+  {
+    "type": "m.login.password",
+    "user": "<user_id or user localpart>",
+    "password": "<password>"
+  }
+
+Alternatively, a client can use a 3pid bound to the user's account on the
+homeserver using the |/account/3pid|_ API rather then giving the ``user``
+explicitly, as follows:
+
+.. code:: json
+
+  {
+    "type": "m.login.password",
+    "medium": "<The medium of the third party identifier. Must be 'email'>",
+    "address": "<The third party address of the user>",
+    "password": "<password>"
+  }
+
+In the case that the homeserver does not know about the supplied 3pid, the
+homeserver must respond with ``403 Forbidden``.
+
+To log in using a login token, clients should submit a ``/login`` request as
+follows:
+
+.. code:: json
+
+  {
+    "type": "m.login.token",
+    "token": "<login token>"
+  }
+
+As with `token-based`_ interactive login, the ``token`` must encode the
+user id. In the case that the token is not valid, the homeserver must respond
+with ``403 Forbidden`` and an error code of ``M_FORBIDDEN``.
+
+{{login_cs_http_api}}
+
+{{logout_cs_http_api}}
 
 Login Fallback
-++++++++++++++
+<<<<<<<<<<<<<<
 
 If a client does not recognize any or all login flows it can use the fallback
 login API::
@@ -497,35 +746,30 @@ This returns an HTML and JavaScript page which can perform the entire login
 process. The page will attempt to call the JavaScript function
 ``window.onLogin`` when login has been successfully completed.
 
-Changing Password
-+++++++++++++++++
-Request::
+.. _Registration:
 
-  POST /_matrix/client/%CLIENT_MAJOR_VERSION%/account/password
+Account registration and management
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-This API endpoint uses the User-Interactive Authentication API. An access token
-should be submitted to this endpoint if the client has an active session. The
-homeserver may change the flows available depending on whether a valid access
-token is provided.
+{{registration_cs_http_api}}
 
-The body of the POST request is a JSON object containing:
+Notes on password management
+++++++++++++++++++++++++++++
 
-new_password
-  The new password for the account.
+.. WARNING::
+  Clients SHOULD enforce that the password provided is suitably complex. The
+  password SHOULD include a lower-case letter, an upper-case letter, a number
+  and a symbol and be at a minimum 8 characters in length. Servers MAY reject
+  weak passwords with an error code ``M_WEAK_PASSWORD``.
 
-On success, an empty JSON object is returned.
-
-The error code M_NOT_FOUND is returned if the user authenticated with a third
-party identifier but the homeserver could not find a matching account in its
-database.
 
 Adding Account Administrative Contact Information
-+++++++++++++++++++++++++++++++++++++++++++++++++
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A homeserver may keep some contact information for administrative use.
 This is independent of any information kept by any Identity Servers.
 
-{{administrative_contact_http_api}}
+{{administrative_contact_cs_http_api}}
 
 Pagination
 ----------
@@ -551,16 +795,16 @@ outlined here: see the specific endpoint in question for more information.
 
 Pagination Request Query Parameters
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-       
+
 Query parameters:
   from:
     $streamtoken - The opaque token to start streaming from.
   to:
     $streamtoken - The opaque token to end streaming at. Typically,
-    clients will not know the item of data to end at, so this will usually be 
+    clients will not know the item of data to end at, so this will usually be
     omitted.
   limit:
-    integer - An integer representing the maximum number of items to 
+    integer - An integer representing the maximum number of items to
     return.
   dir:
     f|b - The direction to return events in. Typically this is ``b`` to paginate
@@ -572,7 +816,7 @@ start and end of the dataset respectively.
 Unless specified, the default pagination parameters are ``from=START``,
 ``to=END``, without a limit set.
 
-For example, if an endpoint had events E1 -> E15. The client wants the last 5 
+For example, if an endpoint had events E1 -> E15. The client wants the last 5
 events and doesn't know any previous events::
 
     S                                                    E
@@ -586,7 +830,7 @@ events and doesn't know any previous events::
        E15,E14,E13,E12,E11
 
 
-Another example: a public room list has rooms R1 -> R17. The client is showing 5 
+Another example: a public room list has rooms R1 -> R17. The client is showing 5
 rooms at a time on screen, and is on page 2. They want to
 now show page 3 (rooms R11 -> 15)::
 
@@ -600,8 +844,8 @@ now show page 3 (rooms R11 -> 15)::
                                              |
                              GET /roomslist?from=9&to=END&limit=5
                              Returns: R11,R12,R13,R14,R15
-                         
-Note that tokens are treated in an *exclusive*, not inclusive, manner. The end 
+
+Note that tokens are treated in an *exclusive*, not inclusive, manner. The end
 token from the initial request was '9' which corresponded to R10. When the 2nd
 request was made, R10 did not appear again, even though from=9 was specified. If
 you know the token, you already have the data.
@@ -628,7 +872,7 @@ Filters can be created on the server and can be passed as as a parameter to APIs
 which return events. These filters alter the data returned from those APIs.
 Not all APIs accept filters.
 
-{{filter_http_api}}
+{{filter_cs_http_api}}
 
 Events
 ------
@@ -640,64 +884,8 @@ considered as a list of events. The server 'linearises' the
 eventually-consistent event graph of events into an 'event stream' at any given
 point in time::
 
-  [E0]->[E1]->[E2]->[E3]->[E4]->[E5]->[E6]->[E7]->[E8]->[E9]
-  
-Clients can add to the stream by PUTing message or state events, and can read
-from the stream via the
-|/initialSync|_,
-|/events|_,
-|/rooms/<room_id>/initialSync|_, and
-|/rooms/<room_id>/messages|_
-APIs.
+  [E0]->[E1]->[E2]->[E3]->[E4]->[E5]
 
-For reading events, the intended flow of operation is to call
-/_matrix/client/%CLIENT_MAJOR_VERSION%/initialSync, which returns all of the
-state and the last N events in the
-event stream for each room, including ``start`` and ``end`` values describing the
-pagination of each room's event stream. For instance,
-/_matrix/client/%CLIENT_MAJOR_VERSION%/initialSync?limit=5 might return the
-events for a room in the
-rooms[0].messages.chunk[] array, with tokens describing the start and end of the
-range in rooms[0].messages.start as '1-2-3' and rooms[0].messages.end as
-'a-b-c'.
-
-You can visualise the range of events being returned as::
-
-  [E0]->[E1]->[E2]->[E3]->[E4]->[E5]->[E6]->[E7]->[E8]->[E9]
-                              ^                             ^
-                              |                             |
-                        start: '1-2-3'                end: 'a-b-c'
-                             
-Now, to receive future events in real-time on the event stream, you simply GET
-/_matrix/client/%CLIENT_MAJOR_VERSION%/events with a ``from`` parameter of
-'a-b-c': in other words passing in the
-``end`` token returned by initial sync. The request blocks until new events are
-available or until your specified timeout elapses, and then returns a
-new paginatable chunk of events alongside new start and end parameters::
-
-  [E0]->[E1]->[E2]->[E3]->[E4]->[E5]->[E6]->[E7]->[E8]->[E9]->[E10]
-                                                            ^      ^
-                                                            |      |
-                                                            |  end: 'x-y-z'
-                                                      start: 'a-b-c'
-
-To resume polling the events stream, you pass in the new ``end`` token as the
-``from`` parameter of /_matrix/client/%CLIENT_MAJOR_VERSION%/events and poll again.
-
-Similarly, to paginate events backwards in order to lazy-load in previous
-history from the room, you simply
-GET /_matrix/client/%CLIENT_MAJOR_VERSION%/rooms/<room_id>/messages
-specifying the ``from`` token to paginate backwards from and a limit of the number
-of messages to retrieve. For instance, calling this API with a ``from`` parameter
-of '1-2-3' and a limit of 5 would return::
-
-  [E0]->[E1]->[E2]->[E3]->[E4]->[E5]->[E6]->[E7]->[E8]->[E9]->[E10]
-  ^                            ^
-  |                            |
-  start: 'u-v-w'          end: '1-2-3'
-
-To continue paginating backwards, one calls the /messages API again, supplying
-the new ``start`` value as the ``from`` parameter.
 
 
 Types of room events
@@ -727,14 +915,56 @@ namespaced for each application and reduces the risk of clashes.
 Syncing
 ~~~~~~~
 
-Clients receive new events by "long-polling" the homeserver via the events API.
-This involves specifying a timeout in the request which will hold
-open the HTTP connection for a short period of time waiting for new events,
-returning early if an event occurs. Only the events API supports long-polling.
-All events which are visible to the client will appear in the
-events API. When the request returns, an ``end`` token is included in the
-response. This token can be used in the next request to continue where the
-last request left off. Multiple events can be returned per long-poll.
+To read events, the intended flow of operation is for clients to first call the
+|/sync|_ API without a ``since`` parameter. This returns the most recent
+message events for each room, as well as the state of the room at the start of
+the returned timeline. The response also includes a ``next_batch`` field, which
+should be used as the value of the ``since`` parameter in the next call to
+``/sync``. Finally, the response includes, for each room, a ``prev_batch``
+field, which can be passed as a ``start`` parameter to the
+|/rooms/<room_id>/messages|_ API to retrieve earlier messages.
+
+You can visualise the range of events being returned as::
+
+  [E0]->[E1]->[E2]->[E3]->[E4]->[E5]
+             ^                      ^
+             |                      |
+       prev_batch: '1-2-3'        next_batch: 'a-b-c'
+
+
+Clients then receive new events by "long-polling" the homeserver via the
+``/sync`` API, passing the value of the ``next_batch`` field from the response
+to the previous call as the ``since`` parameter. This involves specifying a
+timeout in the request which will hold open the HTTP connection for a short
+period of time waiting for new events, returning early if an event occurs. Only
+the ``/sync`` API (and the deprecated ``/events`` API) support long-polling in
+this way.
+
+The response for such an incremental sync can be visualised as::
+
+  [E0]->[E1]->[E2]->[E3]->[E4]->[E5]->[E6]
+                                    ^     ^
+                                    |     |
+                                    |  next_batch: 'x-y-z'
+                                  prev_batch: 'a-b-c'
+
+
+Normally, all new events which are visible to the client will appear in the
+response to the ``/sync`` API. However, if a large number of events arrive
+between calls to ``/sync``, a "limited" timeline is returned, containing only
+the most recent message events. A state "delta" is also returned, summarising
+any state changes in the omitted part of the timeline. The client may therefore
+end up with "gaps" in its knowledge of the message timeline. The client can
+fill these gaps using the |/rooms/<room_id>/messages|_ API. This situation
+looks like this::
+
+                                     | gap |
+                                     | <-> |
+   [E0]->[E1]->[E2]->[E3]->[E4]->[E5]->[E6]->[E7]->[E8]->[E9]->[E10]
+                                           ^                        ^
+                                           |                        |
+                                      prev_batch: 'd-e-f'       next_batch: 'u-v-w'
+
 
 .. Warning::
   Events are ordered in this API according to the arrival time of the event on
@@ -743,16 +973,45 @@ last request left off. Multiple events can be returned per long-poll.
   being received (once per distinct API called). Clients SHOULD de-duplicate
   events based on the event ID when this happens.
 
+.. NOTE::
+
+  The ``/sync`` API returns a ``state`` list which is separate from the
+  ``timeline``. This ``state`` list allows clients to keep their model of the
+  room state in sync with that on the server. In the case of an initial
+  (``since``-less) sync, the ``state`` list represents the complete state of
+  the room at the **start** of the returned timeline (so in the case of a
+  recently-created room whose state fits entirely in the ``timeline``, the
+  ``state`` list will be empty).
+
+  In the case of an incremental sync, the ``state`` list gives a delta
+  between the state of the room at the ``since`` parameter and that at the
+  start of the returned ``timeline``. (It will therefore be empty
+  unless the timeline was ``limited``.)
+
+  In both cases, it should be noted that the events returned in the ``state``
+  list did **not** necessarily take place just before the returned
+  ``timeline``, so clients should not display them to the user in the timeline.
+
+.. admonition:: Rationale
+
+  An early design of this specification made the ``state`` list represent the
+  room state at the end of the returned timeline, instead of the start. This
+  was unsatisfactory because it led to duplication of events between the
+  ``state`` list and the ``timeline``, but more importantly, it made it
+  difficult for clients to show the timeline correctly.
+
+  In particular, consider a returned timeline [M0, S1, M2], where M0 and M2 are
+  both messages sent by the same user, and S1 is a state event where that user
+  changes their displayname. If the ``state`` list represents the room state at
+  the end of the timeline, the client must take a copy of the state dictionary,
+  and *rewind* S1, in order to correctly calculate the display name for M0.
+
 .. TODO-spec
   Do we ever support streaming requests? Why not websockets?
 
-When the client first logs in, they will need to initially synchronise with
-their homeserver. This is achieved via the initial sync API described below.
-This API also returns an ``end`` token which can be used with the event stream.
+{{sync_cs_http_api}}
 
-{{old_sync_http_api}}
-
-{{sync_http_api}}
+{{old_sync_cs_http_api}}
 
 
 Getting events for a room
@@ -760,16 +1019,17 @@ Getting events for a room
 
 There are several APIs provided to ``GET`` events for a room:
 
-{{rooms_http_api}}
+{{rooms_cs_http_api}}
 
+{{message_pagination_cs_http_api}}
 
-{{message_pagination_http_api}}
+{{room_initial_sync_cs_http_api}}
 
 
 Sending events to a room
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-{{room_state_http_api}}
+{{room_state_cs_http_api}}
 
 
 **Examples**
@@ -806,7 +1066,7 @@ In some cases, there may be no need for a ``state_key``, so it can be omitted::
   PUT /rooms/!roomid:domain/state/m.room.bgd.color
   { "color": "red", "hex": "#ff0000" }
 
-{{room_send_http_api}}
+{{room_send_cs_http_api}}
 
 
 Redactions
@@ -828,9 +1088,9 @@ the following list:
 - ``event_id``
 - ``type``
 - ``room_id``
-- ``user_id``
+- ``sender``
 - ``state_key``
-- ``prev_state``
+- ``prev_content``
 - ``content``
 
 The content object should also be stripped of all keys, unless it is one of
@@ -843,9 +1103,10 @@ one of the following event types:
   ``kick``, ``redact``, ``state_default``, ``users``, ``users_default``.
 - ``m.room.aliases`` allows key ``aliases``
 
-The redaction event should be added under the key ``redacted_because``. When a
-client receives a redaction event it should change the redacted event
-in the same way a server does.
+The server should add the event causing the redaction to the ``unsigned``
+property of the redacted event, under the ``redacted_because`` key. When a
+client receives a redaction event it should change the redacted event in the
+same way a server does.
 
 Events
 ++++++
@@ -855,7 +1116,7 @@ Events
 Client behaviour
 ++++++++++++++++
 
-{{redaction_http_api}}
+{{redaction_cs_http_api}}
 
 Rooms
 -----
@@ -873,9 +1134,9 @@ includes:
 - ``m.room.join_rules`` : Whether the room is "invite-only" or not.
 
 See `Room Events`_ for more information on these events. To create a room, a
-client has to use the the following API.
+client has to use the following API.
 
-{{create_room_http_api}}
+{{create_room_cs_http_api}}
 
 Room aliases
 ~~~~~~~~~~~~
@@ -886,7 +1147,9 @@ form ``#friendlyname:server.name``.
 As room aliases are scoped to a particular homeserver domain name, it is
 likely that a homeserver will reject attempts to maintain aliases on other
 domain names. This specification does not provide a way for homeservers to
-send update requests to other servers.
+send update requests to other servers. However, homeservers MUST handle
+``GET`` requests to resolve aliases on other servers; they should do this using
+the federation API if necessary.
 
 Rooms store a *partial* list of room aliases via the ``m.room.aliases`` state
 event. This alias list is partial because it cannot guarantee that the alias
@@ -898,10 +1161,7 @@ appears to have a room alias of ``#alias:example.com``, this SHOULD be checked
 to make sure that the room's ID matches the ``room_id`` returned from the
 request.
 
-Homeservers can respond to resolve requests for aliases on other domains than
-their own by using the federation API to ask other domain name homeservers.
-
-{{directory_http_api}}
+{{directory_cs_http_api}}
 
 
 Permissions
@@ -923,8 +1183,14 @@ The keys contained in ``m.room.power_levels`` determine the levels required for
 certain operations such as kicking, banning and sending state events. See
 `m.room.power_levels`_ for more information.
 
-Joining rooms
-~~~~~~~~~~~~~
+Clients may wish to assign names to particular power levels. A suggested mapping is as follows:
+- 0   User
+- 50  Moderator
+- 100 Admin
+
+
+Room membership
+~~~~~~~~~~~~~~~
 Users need to be a member of a room in order to send and receive events in that
 room. There are several states in which a user may be, in relation to a room:
 
@@ -980,29 +1246,41 @@ The allowable state transitions of membership are::
                   /ban
 
 
-{{inviting_http_api}}
+Joining rooms
++++++++++++++
 
-{{joining_http_api}}
+{{inviting_cs_http_api}}
 
-{{kicking_http_api}}
-
-{{banning_http_api}}
+{{joining_cs_http_api}}
 
 Leaving rooms
-~~~~~~~~~~~~~
++++++++++++++
 A user can leave a room to stop receiving events for that room. A user must
 have been invited to or have joined the room before they are eligible to leave
 the room. Leaving a room to which the user has been invited rejects the invite.
-Once a user leaves a room, it will no longer appear on the |/initialSync|_ API.
+Once a user leaves a room, it will no longer appear in the response to the
+|/sync|_ API unless it is explicitly requested via a filter with the
+``include_leave`` field set to ``true``.
 
-Whether or not they actually joined the room, if the room is
-an "invite-only" room they will need to be re-invited before they can re-join
-the room.
+Whether or not they actually joined the room, if the room is an "invite-only"
+room the user will need to be re-invited before they can re-join the room.
 
-{{leaving_http_api}}
+A user can also forget a room which they have left. Rooms which have been
+forgotten will never appear the response to the |/sync|_ API, until the user
+re-joins or is re-invited.
+
+A user may wish to force another user to leave a room. This can be done by
+'kicking' the other user. To do so, the user performing the kick MUST have the
+required power level. Once a user has been kicked, the behaviour is the same as
+if they had left of their own accord. In particular, the user is free to
+re-join if the room is not "invite-only".
+
+{{leaving_cs_http_api}}
+
+{{kicking_cs_http_api}}
 
 Banning users in a room
-~~~~~~~~~~~~~~~~~~~~~~~
++++++++++++++++++++++++
 A user may decide to ban another user in a room. 'Banning' forces the target
 user to leave the room and prevents them from re-joining the room. A banned
 user will not be treated as a joined user, and so will not be able to send or
@@ -1011,7 +1289,7 @@ ban MUST have the required power level. To ban a user, a request should be made
 to |/rooms/<room_id>/ban|_ with::
 
   {
-    "user_id": "<user id to ban"
+    "user_id": "<user id to ban>"
     "reason": "string: <reason for the ban>"
   }
 
@@ -1027,15 +1305,19 @@ member's state, by making a request to
 A user must be explicitly unbanned with a request to |/rooms/<room_id>/unban|_
 before they can re-join the room or be re-invited.
 
+{{banning_cs_http_api}}
+
+
+
 Listing rooms
 ~~~~~~~~~~~~~
 
-{{list_public_rooms_http_api}}
+{{list_public_rooms_cs_http_api}}
 
 Profiles
 --------
 
-{{profile_http_api}}
+{{profile_cs_http_api}}
 
 Events on Change of Profile Information
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1081,6 +1363,9 @@ have to wait in milliseconds before they can try again.
     homeserver come up with their own idea, causing totally unpredictable performance over
     federated rooms?
 
+.. References
+
+.. _`macaroon`: http://research.google.com/pubs/pub41892.html
 
 .. Links through the external API docs are below
 .. =============================================
@@ -1094,6 +1379,9 @@ have to wait in milliseconds before they can try again.
 .. |/events| replace:: ``/events``
 .. _/events: #get-matrix-client-%CLIENT_MAJOR_VERSION%-events
 
+.. |/createRoom| replace:: ``/createRoom``
+.. _/createRoom: #post-matrix-client-%CLIENT_MAJOR_VERSION%-createroom
+
 .. |/rooms/<room_id>/initialSync| replace:: ``/rooms/<room_id>/initialSync``
 .. _/rooms/<room_id>/initialSync: #get-matrix-client-%CLIENT_MAJOR_VERSION%-rooms-roomid-initialsync
 
@@ -1105,6 +1393,9 @@ have to wait in milliseconds before they can try again.
 
 .. |/rooms/<room_id>/state| replace:: ``/rooms/<room_id>/state``
 .. _/rooms/<room_id>/state: #get-matrix-client-%CLIENT_MAJOR_VERSION%-rooms-roomid-state
+
+.. |/rooms/<room_id>/send| replace:: ``/rooms/<room_id>/send``
+.. _/rooms/<room_id>/send: #put-matrix-client-%CLIENT_MAJOR_VERSION%-rooms-roomid-send-eventtype-txnid
 
 .. |/rooms/<room_id>/invite| replace:: ``/rooms/<room_id>/invite``
 .. _/rooms/<room_id>/invite: #post-matrix-client-%CLIENT_MAJOR_VERSION%-rooms-roomid-invite
@@ -1121,5 +1412,11 @@ have to wait in milliseconds before they can try again.
 .. |/rooms/<room_id>/unban| replace:: ``/rooms/<room_id>/unban``
 .. _/rooms/<room_id>/unban: #post-matrix-client-%CLIENT_MAJOR_VERSION%-rooms-roomid-unban
 
+.. |/rooms/{roomId}/context/{eventId}| replace:: ``/rooms/{roomId}/context/{eventId}``
+.. _/rooms/{roomId}/context/{eventId}: #get-matrix-client-%CLIENT_MAJOR_VERSION%-rooms-roomid-context-eventid
+
 .. |/account/3pid| replace:: ``/account/3pid``
 .. _/account/3pid: #post-matrix-client-%CLIENT_MAJOR_VERSION%-account-3pid
+
+.. |/user/<user_id>/account_data/<type>| replace:: ``/user/<user_id>/account_data/<type>``
+.. _/user/<user_id>/account_data/<type>: #put-matrix-client-%CLIENT_MAJOR_VERSION%-user-userid-account-data-type

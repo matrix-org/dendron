@@ -1,11 +1,26 @@
 #! /usr/bin/env python
 
+# Copyright 2016 OpenMarket Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from argparse import ArgumentParser
 from docutils.core import publish_file
 import copy
 import fileinput
 import glob
 import os
+import os.path
 import re
 import shutil
 import subprocess
@@ -112,7 +127,7 @@ def load_with_adjusted_titles(filename, file_stream, title_level, title_styles):
             line_title_style,
             title_styles[adjusted_level]
         ))
-            
+
     return "".join(rst_lines)
 
 
@@ -277,16 +292,10 @@ def run_through_template(input_files, set_verbose, substitutions):
         cwd="../templating"
     )
 
-def get_build_targets(targets_listing):
-    with open(targets_listing, "r") as targ_file:
-        all_targets = yaml.load(targ_file.read())
-    return all_targets["targets"].keys()
-
-
 """
 Extract and resolve groups for the given target in the given targets listing.
 Args:
-    targets_listing (str): The path to a YAML file containing a list of targets
+    all_targets (dict): The parsed YAML file containing a list of targets
     target_name (str): The name of the target to extract from the listings.
 Returns:
     dict: Containing "filees" (a list of file paths), "relative_title_styles"
@@ -294,14 +303,12 @@ Returns:
           (a list of characters which represent the global title style to follow,
            with the top section title first, the second section second, and so on.)
 """
-def get_build_target(targets_listing, target_name):
+def get_build_target(all_targets, target_name):
     build_target = {
         "title_styles": [],
         "relative_title_styles": {},
         "files": []
     }
-    with open(targets_listing, "r") as targ_file:
-        all_targets = yaml.load(targ_file.read())
 
     build_target["title_styles"] = all_targets["title_styles"]
     build_target["relative_title_styles"] = all_targets["relative_title_styles"]
@@ -393,35 +400,49 @@ def cleanup_env():
     shutil.rmtree("./tmp")
 
 
-def main(requested_target_name, keep_intermediates, substitutions):
+def main(targets, keep_intermediates, substitutions):
     prepare_env()
-    log("Building spec [target=%s]" % requested_target_name)
 
-    targets = [requested_target_name]
-    if requested_target_name == "all":
-        targets = get_build_targets("../specification/targets.yaml") + ["howtos"]
+    with open("../specification/targets.yaml", "r") as targ_file:
+        target_defs = yaml.load(targ_file.read())
+
+    if targets == ["all"]:
+        targets = target_defs["targets"].keys()
+
+    log("Building spec [target=%s]" % targets)
 
     templated_files = []
     for target_name in targets:
         templated_file = "tmp/templated_%s.rst" % (target_name,)
 
-        if target_name == "howtos":
-            shutil.copy("../supporting-docs/howtos/client-server.rst", templated_file)
-        else:
-            target = get_build_target("../specification/targets.yaml", target_name)
-            build_spec(target=target, out_filename=templated_file)
+        target = get_build_target(target_defs, target_name)
+        build_spec(target=target, out_filename=templated_file)
         templated_files.append(templated_file)
 
     # we do all the templating at once, because it's slow
     run_through_template(templated_files, VERBOSE, substitutions)
 
     for target_name in targets:
+        target = target_defs["targets"].get(target_name)
+        version_label = None
+        if target:
+            version_label = target.get("version_label")
+            if version_label:
+                for old, new in substitutions.items():
+                    version_label = version_label.replace(old, new)
+
         templated_file = "tmp/templated_%s.rst" % (target_name,)
         rst_file = "tmp/spec_%s.rst" % (target_name,)
-        html_file = "gen/%s.html" % (target_name,)
+        if version_label:
+            d = os.path.join("gen", target_name)
+            if not os.path.exists(d):
+                os.mkdir(d)
+            html_file = os.path.join(d, "%s.html" % version_label)
+        else:
+            html_file = "gen/%s.html" % (target_name, )
 
         fix_relative_titles(
-            target=target, filename=templated_file,
+            target=target_defs, filename=templated_file,
             out_filename=rst_file,
         )
         rst2html(rst_file, html_file)
@@ -429,6 +450,13 @@ def main(requested_target_name, keep_intermediates, substitutions):
 
     if not keep_intermediates:
         cleanup_env()
+
+
+def list_targets():
+    with open("../specification/targets.yaml", "r") as targ_file:
+        target_defs = yaml.load(targ_file.read())
+    targets = target_defs["targets"].keys()
+    print "\n".join(targets)
 
 
 def extract_major(s):
@@ -448,7 +476,7 @@ if __name__ == '__main__':
         help="Do not delete intermediate files. They will be found in tmp/"
     )
     parser.add_argument(
-        "--target", "-t", default="all",
+        "--target", "-t", action="append",
         help="Specify the build target to build from specification/targets.yaml. " +
              "The value 'all' will build all of the targets therein."
     )
@@ -464,15 +492,22 @@ if __name__ == '__main__':
         "--server_release", "-s", action="store", default="unstable",
         help="The server-server release tag to generate, e.g. r1.2"
     )
+    parser.add_argument(
+        "--list_targets", action="store_true",
+        help="Do not update the specification. Instead print a list of targets.",
+    )
+
     args = parser.parse_args()
-    if not args.target:
-        parser.print_help()
-        sys.exit(1)
     VERBOSE = args.verbose
+
+    if args.list_targets:
+        list_targets()
+        exit(0)
+
     substitutions = {
         "%CLIENT_RELEASE_LABEL%": args.client_release,
         "%CLIENT_MAJOR_VERSION%": extract_major(args.client_release),
         "%SERVER_RELEASE_LABEL%": args.server_release,
         "%SERVER_MAJOR_VERSION%": extract_major(args.server_release),
     }
-    main(args.target, args.nodelete, substitutions)
+    main(args.target or ["all"], args.nodelete, substitutions)

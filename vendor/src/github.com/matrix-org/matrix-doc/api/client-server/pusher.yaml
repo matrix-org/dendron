@@ -1,3 +1,16 @@
+# Copyright 2016 OpenMarket Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 swagger: '2.0'
 info:
   title: "Matrix Client-Server Push API"
@@ -12,12 +25,98 @@ consumes:
 produces:
   - application/json
 securityDefinitions:
-  accessToken:
-    type: apiKey
-    description: The user_id or application service access_token
-    name: access_token
-    in: query
+  $ref: definitions/security.yaml
 paths:
+  "/pushers":
+    get:
+      summary: Gets the current pushers for the authenticated user
+      description: |-
+          Gets all currently active pushers for the authenticated user
+      security:
+        - accessToken: []
+      responses:
+        200:
+          description: The pushers for this user
+          examples:
+            application/json: |-
+              {
+                "pushers": [
+                  {
+                    "pushkey": "Xp/MzCt8/9DcSNE9cuiaoT5Ac55job3TdLSSmtmYl4A=",
+                    "kind": "http",
+                    "app_id": "face.mcapp.appy.prod",
+                    "app_display_name": "Appy McAppface",
+                    "device_display_name": "Alice's Phone",
+                    "profile_tag": "xyz",
+                    "lang": "en-US",
+                    "data": {
+                        "url": "https://example.com/_matrix/push/v1/notify"
+                    }
+                  }
+                ]
+              }
+          schema:
+            type: object
+            properties:
+              pushers:
+                type: array
+                title: Pushers
+                description: |-
+                  An array containing the current pushers for the user
+                items:
+                  type: object
+                  title: Pusher
+                  properties:
+                    pushkey:
+                      type: string
+                      description: |-
+                        This is a unique identifier for this pusher. See `/set` for
+                        more detail.
+                        Max length, 512 bytes.
+                    kind:
+                      type: string
+                      description: |-
+                        The kind of pusher. ``"http"`` is a pusher that
+                        sends HTTP pokes.
+                    app_id:
+                      type: string
+                      description: |-
+                        This is a reverse-DNS style identifier for the application.
+                        Max length, 64 chars.
+                    app_display_name:
+                      type: string
+                      description: |-
+                        A string that will allow the user to identify what application
+                        owns this pusher.
+                    device_display_name:
+                      type: string
+                      description: |-
+                        A string that will allow the user to identify what device owns
+                        this pusher.
+                    profile_tag:
+                      type: string
+                      description: |-
+                        This string determines which set of device specific rules this
+                        pusher executes.
+                    lang:
+                      type: string
+                      description: |-
+                        The preferred language for receiving notifications (e.g. 'en'
+                        or 'en-US')
+                    data:
+                      type: object
+                      description: |-
+                        A dictionary of information for the pusher implementation
+                        itself.
+                      title: PusherData
+                      properties:
+                        url:
+                          type: string
+                          description: |-
+                            Required if ``kind`` is ``http``. The URL to use to send
+                            notifications to.
+      tags:
+        - Push notifications
   "/pushers/set":
     post:
       summary: Modify a pusher for this user on the homeserver.
@@ -40,8 +139,8 @@ paths:
                 "kind": "http",
                 "app_display_name": "Mat Rix",
                 "device_display_name": "iPhone 9",
+                "profile_tag": "xxyyzz",
                 "app_id": "com.example.app.ios",
-                "profile_tag": "4bea66906d0111e59d70feff819cdc9f",
                 "pushkey": "APA91bHPRgkF3JUikC4ENAHEeMrd41Zxv3hVZjC9KtT8OvPVGJ-hQMRKRrZuJAEcl7B338qju59zJMjw2DELjzEvxwYv7hH5Ynpc1ODQ0aT4U4OFEeco8ohsN5PjL1iC2dNtk2BAokeMCg2ZXKqpc8FXKmhX94kIxQ",
                 "data": {
                   "url": "https://push-gateway.location.here"
@@ -63,17 +162,6 @@ paths:
                 description: |-
                   The kind of pusher to configure. ``"http"`` makes a pusher that
                   sends HTTP pokes. ``null`` deletes the pusher.
-              profile_tag:
-                type: string
-                description: |-
-                  This is a string that determines what set of device rules will
-                  be matched when evaluating push rules for this pusher. It is
-                  an arbitrary string. Multiple devices may use the same
-                  ``profile_tag``. It is advised that when an app's data is
-                  copied or restored to a different device, this value remain
-                  the same. Client apps should offer ways to change the
-                  ``profile_tag``, optionally copying rules from the old
-                  profile tag. Max length, 32 bytes.
               app_id:
                 type: string
                 description: |-
@@ -91,6 +179,11 @@ paths:
                 description: |-
                   A string that will allow the user to identify what device owns
                   this pusher.
+              profile_tag:
+                type: string
+                description: |-
+                  This string determines which set of device specific rules this
+                  pusher executes.
               lang:
                 type: string
                 description: |-
@@ -102,6 +195,7 @@ paths:
                   A dictionary of information for the pusher implementation
                   itself. If ``kind`` is ``http``, this should contain ``url``
                   which is the URL to use to send notifications to.
+                title: PusherData
                 properties:
                   url:
                     type: string
@@ -116,7 +210,7 @@ paths:
                   different user IDs. Otherwise, the homeserver must remove any
                   other pushers with the same App ID and pushkey for different
                   users. The default is ``false``.
-            required: ['profile_tag', 'kind', 'app_id', 'app_display_name',
+            required: ['kind', 'app_id', 'app_display_name',
                 'device_display_name', 'pushkey', 'lang', 'data']
       responses:
         200:
