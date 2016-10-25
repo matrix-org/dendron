@@ -35,9 +35,6 @@ var (
 	synapseConfig          = flag.String("synapse-config", "homeserver.yaml", "Path to synapse's config")
 	synapsePython          = flag.String("synapse-python", "python", "A python interpreter to use for synapse. This should be the python binary installed inside synapse's virtualenv. The interpreter will be looked up on the $PATH")
 	synapseURLStr          = flag.String("synapse-url", "http://localhost:18448", "The HTTP URL that synapse is configured to listen on.")
-	synapseDB              = flag.String("synapse-postgres", "", "Unused")
-	serverName             = flag.String("server-name", "", "Matrix server name. This must match the server_name configured for synapse.")
-	macaroonSecret         = flag.String("macaroon-secret", "", "Secret key for macaroons. This must match the macaroon_secret_key configured for synapse.")
 	listenAddr             = flag.String("addr", ":8448", "Address to listen for matrix requests on")
 	listenTLS              = flag.Bool("tls", true, "Listen for HTTPS requests, otherwise listen for HTTP requests")
 	listenCertFile         = flag.String("cert-file", "", "TLS Certificate. This must match the tls_certificate_path configured for synapse.")
@@ -54,6 +51,13 @@ var (
 	clientReaderURLStr     = flag.String("client-reader-url", "", "The HTTP URL that the client reader will listen on")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
+)
+
+var (
+	// Unused flags kept for compatibility with previous versions.
+	_ = flag.String("macaroon-secret", "", "Unused")
+	_ = flag.String("synapse-postgres", "", "Unused")
+	_ = flag.String("server-name", "", "Unused")
 )
 
 func startProcess(app string, processURL *url.URL, terminate chan<- string, name string, args ...string) (*log.Entry, func(), error) {
