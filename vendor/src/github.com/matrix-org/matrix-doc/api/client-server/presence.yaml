@@ -1,3 +1,16 @@
+# Copyright 2016 OpenMarket Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 swagger: '2.0'
 info:
   title: "Matrix Client-Server Presence API"
@@ -12,11 +25,7 @@ consumes:
 produces:
   - application/json
 securityDefinitions:
-  accessToken:
-    type: apiKey
-    description: The user_id or application service access_token
-    name: access_token
-    in: query
+  $ref: definitions/security.yaml
 paths:
   "/presence/{userId}/status":
     put:
@@ -49,7 +58,7 @@ paths:
             properties:
               presence:
                 type: string
-                enum: ["online", "offline", "unavailable", "free_for_chat"]
+                enum: ["online", "offline", "unavailable"]
                 description: The new presence state.
               status_msg:
                 type: string
@@ -94,7 +103,7 @@ paths:
             properties:
               presence:
                 type: string
-                enum: ["online", "offline", "unavailable", "free_for_chat"]
+                enum: ["online", "offline", "unavailable"]
                 description: This user's presence.
               last_active_ago:
                 type: integer
@@ -104,6 +113,10 @@ paths:
               status_msg:
                 type: [string, "null"]
                 description: The state message for this user if one was set.
+              currently_active:
+                type: boolean
+                description: "Whether the user is currently active"
+            required: ["presence"]
         404:
           description: |-
             There is no presence state for this user. This user may not exist or
@@ -185,8 +198,6 @@ paths:
               [
                 {
                   "content": {
-                    "avatar_url": "mxc://matrix.org/AfwefuigfWEfhuiPP",
-                    "displayname": "Alice Margatroid",
                     "last_active_ago": 395,
                     "presence": "offline",
                     "user_id": "@alice:matrix.org"
@@ -195,11 +206,10 @@ paths:
                 },
                 {
                   "content": {
-                    "avatar_url": "mxc://matrix.org/FWEhuiwegfWEfhuiwf",
-                    "displayname": "Marisa Kirisame",
                     "last_active_ago": 16874,
                     "presence": "online",
-                    "user_id": "@marisa:matrix.org"
+                    "user_id": "@marisa:matrix.org",
+                    "currently_active": true
                   },
                   "type": "m.presence"
                 }
@@ -210,6 +220,6 @@ paths:
               type: object
               title: PresenceEvent
               allOf:
-                - "$ref": "../../event-schemas/schema/core-event-schema/event.yaml"
+                - "$ref": "definitions/event-schemas/schema/core-event-schema/event.yaml"
       tags:
         - Presence

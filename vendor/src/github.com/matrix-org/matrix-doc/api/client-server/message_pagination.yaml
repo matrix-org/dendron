@@ -1,3 +1,16 @@
+# Copyright 2016 OpenMarket Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 swagger: '2.0'
 info:
   title: "Matrix Client-Server Rooms API"
@@ -12,11 +25,7 @@ consumes:
 produces:
   - application/json
 securityDefinitions:
-  accessToken:
-    type: apiKey
-    description: The user_id or application service access_token
-    name: access_token
-    in: query
+  $ref: definitions/security.yaml
 paths:
   "/rooms/{roomId}/messages":
     get:
@@ -38,9 +47,20 @@ paths:
           name: from
           description: |-
             The token to start returning events from. This token can be obtained
-            from the initial sync API.
+            from a ``prev_batch`` token returned for each room by the sync API,
+            or from a ``start`` or ``end`` token returned by a previous request
+            to this endpoint.
           required: true
           x-example: "s345_678_333"
+        - in: query
+          type: string
+          name: to
+          description: |-
+            The token to stop returning events at. This token can be obtained from
+            a ``prev_batch`` token returned for each room by the sync endpoint,
+            or from a ``start`` or ``end`` token returned by a previous request to
+            this endpoint.
+          required: false
         - in: query
           type: string
           enum: ["b", "f"]
@@ -55,6 +75,13 @@ paths:
           description: |-
             The maximum number of events to return. Default: 10.
           x-example: "3"
+        - in: query
+          type: string
+          name: filter
+          description: |-
+            A JSON RoomEventFilter to filter returned events with.
+          x-example: |-
+            {"contains_url":true}
       responses:
         200:
           description: A list of messages with a new token to request more.
@@ -65,7 +92,7 @@ paths:
               start:
                 type: string
                 description: |-
-                  The token to start paginating from. If ``dir=b`` this will be
+                  The token the pagination starts from. If ``dir=b`` this will be
                   the token supplied in ``from``.
               end:
                 type: string
@@ -87,7 +114,7 @@ paths:
                 "chunk": [
                   {
                     "origin_server_ts": 1444812213737,
-                    "user_id": "@alice:example.com",
+                    "sender": "@alice:example.com",
                     "event_id": "$1444812213350496Caaaa:example.com",
                     "content": {
                       "body": "hello world",
@@ -99,7 +126,7 @@ paths:
                   },
                   {
                     "origin_server_ts": 1444812194656 ,
-                    "user_id": "@bob:example.com",
+                    "sender": "@bob:example.com",
                     "event_id": "$1444812213350496Cbbbb:example.com",
                     "content": {
                       "body": "the world is big",
@@ -111,7 +138,7 @@ paths:
                   },
                   {
                     "origin_server_ts": 1444812163990,
-                    "user_id": "@bob:example.com",
+                    "sender": "@bob:example.com",
                     "event_id": "$1444812213350496Ccccc:example.com",
                     "content": {
                       "name": "New room name"

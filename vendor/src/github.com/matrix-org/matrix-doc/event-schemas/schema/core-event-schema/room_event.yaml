@@ -1,6 +1,6 @@
 allOf:
 - $ref: event.yaml
-description: In addition to the Event fields, Room Events may have the following additional
+description: In addition to the Event fields, Room Events have the following additional
   fields.
 properties:
   event_id:
@@ -13,6 +13,10 @@ properties:
     description: Required. Contains the fully-qualified ID of the user who *sent*
       this event.
     type: string
+  origin_server_ts:
+    description: Required. Timestamp in milliseconds on originating homeserver
+      when this event was sent.
+    type: number
   unsigned:
     description: Contains optional extra information about the event.
     properties:
@@ -21,8 +25,9 @@ properties:
           sent
         type: integer
       redacted_because:
-        description: The reason this event was redacted, if it was redacted
-        type: string
+        description: Optional. The event that redacted this event, if any.
+        title: Event
+        type: object
       transaction_id:
         description: The client-supplied transaction ID, if the client being given
           the event is the same one which sent it.
@@ -33,5 +38,6 @@ required:
 - event_id
 - room_id
 - sender
+- origin_server_ts
 title: Room Event
 type: object

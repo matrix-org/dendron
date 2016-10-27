@@ -1,3 +1,16 @@
+# Copyright 2016 OpenMarket Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 swagger: '2.0'
 info:
   title: "Matrix Client-Server Push Rules API"
@@ -12,11 +25,7 @@ consumes:
 produces:
   - application/json
 securityDefinitions:
-  accessToken:
-    type: apiKey
-    description: The user_id or application service access_token
-    name: access_token
-    in: query
+  $ref: definitions/security.yaml
 paths:
   "/pushrules/":
     get:
@@ -33,20 +42,8 @@ paths:
           description: All the push rulesets for this user.
           schema:
             type: object
-            required: ["device", "global"]
+            required: ["global"]
             properties:
-              device:
-                type: object
-                title: Devices
-                description: A dictionary of profile tags to rulesets.
-                additionalProperties:
-                    x-pattern: "$PROFILE_TAG"
-                    type: object
-                    description: The ruleset for this profile tag.
-                    title: Ruleset
-                    allOf: [
-                      "$ref": "definitions/push_ruleset.yaml"
-                    ]
               global:
                 type: object
                 description: The global ruleset.
@@ -57,7 +54,6 @@ paths:
           examples:
             application/json: |-
               {
-                "device": {},
                 "global": {
                     "content": [
                         {
@@ -261,13 +257,12 @@ paths:
           required: true
           x-example: "global"
           description: |-
-            Either ``global`` or ``device/<profile_tag>`` to specify global
-            rules or device rules for the given ``profile_tag``.
+            ``global`` to specify global rules.
         - in: path
           type: string
           name: kind
           required: true
-          x-example: room
+          x-example: content
           enum: ["override", "underride", "sender", "room", "content"]
           description: |
             The kind of rule
@@ -275,7 +270,7 @@ paths:
           type: string
           name: ruleId
           required: true
-          x-example: "#spam:example.com"
+          x-example: "nocake"
           description: |
             The identifier for the rule.
       responses:
@@ -289,13 +284,14 @@ paths:
                 "actions": [
                     "dont_notify"
                 ],
-                "rule_id": "#spam:matrix.org",
-                "enabled": true
+                "pattern": "cake*lie",
+                "rule_id": "nocake",
+                "enabled": true,
+                "default": false
               }
           schema:
             type: object
             description: The push rule.
-            title: PushRule
             allOf: [
               "$ref": "definitions/push_rule.yaml"
             ]
@@ -314,13 +310,12 @@ paths:
           required: true
           x-example: "global"
           description: |-
-            Either ``global`` or ``device/<profile_tag>`` to specify global
-            rules or device rules for the given ``profile_tag``.
+            ``global`` to specify global rules.
         - in: path
           type: string
           name: kind
           required: true
-          x-example: room
+          x-example: content
           enum: ["override", "underride", "sender", "room", "content"]
           description: |
             The kind of rule
@@ -328,7 +323,7 @@ paths:
           type: string
           name: ruleId
           required: true
-          x-example: "#spam:example.com"
+          x-example: "nocake"
           description: |
             The identifier for the rule.
       responses:
@@ -356,13 +351,12 @@ paths:
           required: true
           x-example: "global"
           description: |-
-            Either ``global`` or ``device/<profile_tag>`` to specify global
-            rules or device rules for the given ``profile_tag``.
+            ``global`` to specify global rules.
         - in: path
           type: string
           name: kind
           required: true
-          x-example: room
+          x-example: content
           enum: ["override", "underride", "sender", "room", "content"]
           description: |
             The kind of rule
@@ -370,7 +364,7 @@ paths:
           type: string
           name: ruleId
           required: true
-          x-example: "#spam:example.com"
+          x-example: "nocake"
           description: |
             The identifier for the rule.
         - in: query
@@ -380,7 +374,8 @@ paths:
           x-example: someRuleId
           description: |-
             Use 'before' with a ``rule_id`` as its value to make the new rule the
-            next-most important rule with respect to the given rule.
+            next-most important rule with respect to the given user defined rule.
+            It is not possible to add a rule relative to a predefined server rule.
         - in: query
           type: string
           name: after
@@ -388,7 +383,8 @@ paths:
           x-example: anotherRuleId
           description: |-
             This makes the new rule the next-less important rule relative to the
-            given rule.
+            given user defined rule. It is not possible to add a rule relative
+            to a predefined server rule.
         - in: body
           name: pushrule
           description: |-
@@ -416,11 +412,14 @@ paths:
                 description: |-
                   The conditions that must hold true for an event in order for a
                   rule to be applied to an event. A rule with no conditions
-                  always matches.
+                  always matches. Only applicable to ``underride`` and ``override`` rules.
                 items:
                   type: object
-                  title: conditions
                   allOf: [ "$ref": "definitions/push_condition.yaml" ]
+              pattern:
+                type: string
+                description: |-
+                  Only applicable to ``content`` rules. The glob-style pattern to match against.
             required: ["actions"]
       responses:
         200:
@@ -447,10 +446,10 @@ paths:
       tags:
         - Push notifications
   "/pushrules/{scope}/{kind}/{ruleId}/enabled":
-    put:
-      summary: "Enable or disable a push rule."
-      description: |-
-        This endpoint allows clients to enable or disable the specified push rule.
+    get:
+      summary: "Get whether a push rule is enabled"
+      description:
+        This endpoint gets whether the specified push rule is enabled.
       security:
         - accessToken: []
       parameters:
@@ -466,7 +465,7 @@ paths:
           type: string
           name: kind
           required: true
-          x-example: room
+          x-example: cake
           enum: ["override", "underride", "sender", "room", "content"]
           description: |
             The kind of rule
@@ -474,7 +473,51 @@ paths:
           type: string
           name: ruleId
           required: true
-          x-example: "#spam:example.com"
+          x-example: nocake
+          description: |
+            The identifier for the rule.
+      responses:
+        200:
+          description: Whether the push rule is enabled.
+          examples:
+            application/json: |-
+              {
+                "enabled": true
+              }
+          schema:
+            type: object
+            properties:
+              enabled:
+                type: boolean
+                description: Whether the push rule is enabled or not.
+            required: ["enabled"]
+    put:
+      summary: "Enable or disable a push rule."
+      description: |-
+        This endpoint allows clients to enable or disable the specified push rule.
+      security:
+        - accessToken: []
+      parameters:
+        - in: path
+          type: string
+          name: scope
+          required: true
+          x-example: "global"
+          description: |-
+            ``global`` to specify global rules.
+        - in: path
+          type: string
+          name: kind
+          required: true
+          x-example: content
+          enum: ["override", "underride", "sender", "room", "content"]
+          description: |
+            The kind of rule
+        - in: path
+          type: string
+          name: ruleId
+          required: true
+          x-example: "nocake"
           description: |
             The identifier for the rule.
         - in: body
@@ -496,6 +539,114 @@ paths:
       responses:
         200:
           description: The push rule was enabled or disabled.
+          examples:
+            application/json: |-
+              {}
+          schema:
+            type: object
+      tags:
+        - Push notifications
+  "/pushrules/{scope}/{kind}/{ruleId}/actions":
+    get:
+      summary: "The actions for a push rule"
+      description:
+        This endpoint get the actions for the specified push rule.
+      security:
+        - accessToken: []
+      parameters:
+        - in: path
+          type: string
+          name: scope
+          required: true
+          x-example: "global"
+          description: |-
+            Either ``global`` or ``device/<profile_tag>`` to specify global
+            rules or device rules for the given ``profile_tag``.
+        - in: path
+          type: string
+          name: kind
+          required: true
+          x-example: content
+          enum: ["override", "underride", "sender", "room", "content"]
+          description: |
+            The kind of rule
+        - in: path
+          type: string
+          name: ruleId
+          required: true
+          x-example: nocake
+          description: |
+            The identifier for the rule.
+      responses:
+        200:
+          description: The actions for this push rule.
+          examples:
+            application/json: |-
+              {
+                "actions": ["notify"]
+              }
+          schema:
+            type: object
+            properties:
+              actions:
+                type: array
+                description:  The action(s) to perform for this rule.
+                items:
+                  type: string
+            required: ["actions"]
+    put:
+      summary: "Set the actions for a push rule."
+      description: |-
+        This endpoint allows clients to change the actions of a push rule.
+        This can be used to change the actions of builtin rules.
+      security:
+        - accessToken: []
+      parameters:
+        - in: path
+          type: string
+          name: scope
+          required: true
+          x-example: "global"
+          description: |-
+            ``global`` to specify global rules.
+        - in: path
+          type: string
+          name: kind
+          required: true
+          x-example: room
+          enum: ["override", "underride", "sender", "room", "content"]
+          description: |
+            The kind of rule
+        - in: path
+          type: string
+          name: ruleId
+          required: true
+          x-example: "#spam:example.com"
+          description: |
+            The identifier for the rule.
+        - in: body
+          name: body
+          description: |
+            The action(s) to perform when the conditions for this rule are met.
+          required: true
+          schema:
+            type: object
+            properties:
+              actions:
+                type: array
+                description: The action(s) to perform for this rule.
+                items:
+                  type: string
+                  enum: ["notify", "dont_notify", "coalesce", "set_tweak"]
+                  # TODO: type: object e.g. {"set_sound":"beeroclock.wav"} :/
+            required: ["actions"]
+            example: |-
+              {
+                "actions": ["notify"]
+              }
+      responses:
+        200:
+          description: The actions for the push rule were set.
           examples:
             application/json: |-
               {}

@@ -1,3 +1,17 @@
+.. Copyright 2016 OpenMarket Ltd
+..
+.. Licensed under the Apache License, Version 2.0 (the "License");
+.. you may not use this file except in compliance with the License.
+.. You may obtain a copy of the License at
+..
+..     http://www.apache.org/licenses/LICENSE-2.0
+..
+.. Unless required by applicable law or agreed to in writing, software
+.. distributed under the License is distributed on an "AS IS" BASIS,
+.. WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+.. See the License for the specific language governing permissions and
+.. limitations under the License.
+
 Instant Messaging
 =================
 
@@ -189,13 +203,13 @@ of possibilities for choosing a useful name. To ensure that rooms are named
 consistently across clients, clients SHOULD use the following algorithm to
 choose a name:
 
-1. If the room has an `m.room.name`_ state event, use the name given by that
-   event.
+1. If the room has an `m.room.name`_ state event with a non-empty ``name``
+   field, use the name given by that field.
 
-#. If the room has an `m.room.canonical_alias`_ state event, use the alias
-   given by that event.
+#. If the room has an `m.room.canonical_alias`_ state event with a non-empty
+   ``alias`` field, use the alias given by that field as the name.
 
-#. If neither of the above events are present, a name should be composed based
+#. If neither of the above conditions are met, a name should be composed based
    on the members of the room. Clients should consider `m.room.member`_ events
    for users other than the logged-in user, with ``membership: join`` or
    ``membership: invite``.
@@ -235,18 +249,18 @@ choose a name:
 
      See https://matrix.org/jira/browse/SPEC-267 for further discussion.
 
-#. If the room has no ``m.room.name`` or ``m.room.canonical_alias`` events, and
-   no active members other than the current user, clients should consider
-   ``m.room.member`` events with ``membership: leave``. If such events exist, a
-   display name such as "Empty room (was <user1> and <N> others)" (or a
-   localised variant thereof) should be used, following similar rules as for
+#. If the room has no valid ``m.room.name`` or ``m.room.canonical_alias``
+   event, and no active members other than the current user, clients should
+   consider ``m.room.member`` events with ``membership: leave``. If such events
+   exist, a display name such as "Empty room (was <user1> and <N> others)" (or
+   a localised variant thereof) should be used, following similar rules as for
    active members (see `above <active_members_>`_).
 
-#. A complete absence of ``m.room.name``, ``m.room.canonical_alias``, and
-   ``m.room.member`` events is likely to indicate a problem with creating the
-   room or synchronising the state table; however clients should still handle
-   this situation. A display name such as "Empty room" (or a localised variant
-   thereof) should be used in this situation.
+#. A complete absence of room name, canonical alias, and room members is likely
+   to indicate a problem with creating the room or synchronising the state
+   table; however clients should still handle this situation. A display name
+   such as "Empty room" (or a localised variant thereof) should be used in this
+   situation.
 
 .. _`disambiguated display name`: `Calculating the display name for a user`_
 
@@ -256,8 +270,8 @@ change unexpectedly.
 
 .. TODO-spec
   How can we make this less painful for clients to implement, without forcing
-  an English-language implementation on them all?
-
+  an English-language implementation on them all? See
+  https://matrix.org/jira/browse/SPEC-425.
 
 Server behaviour
 ----------------

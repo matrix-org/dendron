@@ -21,11 +21,13 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"syscall"
+	"text/template"
 	"time"
 
 	"github.com/hashicorp/golang-lru"
@@ -57,6 +59,7 @@ type User struct {
 var (
 	port            = flag.Int("port", 9000, "Port on which to listen for HTTP")
 	includesDir     = flag.String("includes_dir", "", "Directory containing include files for styling like matrix.org")
+	accessToken     = flag.String("access_token", "", "github.com access token")
 	allowedMembers  map[string]bool
 	specCache       *lru.Cache // string -> map[string][]byte filename -> contents
 	styledSpecCache *lru.Cache // string -> map[string][]byte filename -> contents
@@ -74,19 +77,22 @@ const (
 
 var numericRegex = regexp.MustCompile(`^\d+$`)
 
-func gitClone(url string, shared bool) (string, error) {
-	directory := path.Join("/tmp/matrix-doc", strconv.FormatInt(rand.Int63(), 10))
-	if err := os.MkdirAll(directory, permissionsOwnerFull); err != nil {
-		return "", fmt.Errorf("error making directory %s: %v", directory, err)
+func accessTokenQuerystring() string {
+	if *accessToken == "" {
+		return ""
 	}
+	return fmt.Sprintf("?access_token=%s", *accessToken)
+}
+
+func gitClone(url string, directory string, shared bool) error {
 	args := []string{"clone", url, directory}
 	if shared {
 		args = append(args, "--shared")
 	}
 	if err := runGitCommand(directory, args); err != nil {
-		return "", err
+		return err
 	}
-	return directory, nil
+	return nil
 }
 
 func gitCheckout(path, sha string) error {
@@ -105,7 +111,7 @@ func runGitCommand(path string, args []string) error {
 }
 
 func lookupPullRequest(prNumber string) (*PullRequest, error) {
-	resp, err := http.Get(fmt.Sprintf("%s/%s", pullsPrefix, prNumber))
+	resp, err := http.Get(fmt.Sprintf("%s/%s%s", pullsPrefix, prNumber, accessTokenQuerystring()))
 	defer resp.Body.Close()
 	if err != nil {
 		return nil, fmt.Errorf("error getting pulls: %v", err)
@@ -150,6 +156,16 @@ func generate(dir string) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error generating spec: %v\nOutput from gendoc:\n%v", err, b.String())
 	}
+
+	// cheekily dump the swagger docs into the gen directory so they can be
+	// served by serveSpec
+	cmd = exec.Command("python", "dump-swagger.py", "gen/api-docs.json")
+	cmd.Dir = path.Join(dir, "scripts")
+	cmd.Stderr = &b
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("error generating api docs: %v\nOutput from dump-swagger:\n%v", err, b.String())
+	}
+
 	return nil
 }
 
@@ -186,8 +202,14 @@ func (s *server) generateAt(sha string) (dst string, err error) {
 			return
 		}
 	}
+
+	dst, err = makeTempDir()
+	if err != nil {
+		return
+	}
+	log.Printf("Generating %s in %s\n", sha, dst)
 	s.mu.Lock()
-	dst, err = gitClone(s.matrixDocCloneURL, true)
+	err = gitClone(s.matrixDocCloneURL, dst, true)
 	s.mu.Unlock()
 	if err != nil {
 		return
@@ -210,7 +232,7 @@ func (s *server) getSHAOf(ref string) (string, error) {
 	err := cmd.Run()
 	s.mu.Unlock()
 	if err != nil {
-		return "", fmt.Errorf("error generating spec: %v\nOutput from gendoc:\n%v", err, b.String())
+		return "", fmt.Errorf("error generating spec: %v\nOutput from git:\n%v", err, b.String())
 	}
 	return strings.TrimSpace(b.String()), nil
 }
@@ -345,31 +367,51 @@ func (s *server) serveSpec(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		if styleLikeMatrixDotOrg {
-			cmd := exec.Command("./add-matrix-org-stylings.sh", *includesDir)
-			cmd.Dir = path.Join(dst, "scripts")
-			var b bytes.Buffer
-			cmd.Stderr = &b
-			if err := cmd.Run(); err != nil {
-				writeError(w, 500, fmt.Errorf("error styling spec: %v\nOutput:\n%v", err, b.String()))
-				return
+		pathToContent = make(map[string][]byte)
+		scriptsdir := path.Join(dst, "scripts")
+		base := path.Join(scriptsdir, "gen")
+		walker := func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
 			}
+			if info.IsDir() {
+				return nil
+			}
+
+			rel, err := filepath.Rel(base, path)
+			if err != nil {
+				return fmt.Errorf("Failed to get relative path of %s: %v", path, err)
+			}
+
+			if styleLikeMatrixDotOrg {
+				cmd := exec.Command("./add-matrix-org-stylings.pl", *includesDir, path)
+				cmd.Dir = scriptsdir
+				var b bytes.Buffer
+				cmd.Stderr = &b
+				if err := cmd.Run(); err != nil {
+					return fmt.Errorf("error styling spec: %v\nOutput:\n%v", err, b.String())
+				}
+			}
+
+			bytes, err := ioutil.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("Error reading spec: %v", err)
+			}
+			pathToContent[rel] = bytes
+			return nil
 		}
 
-		fis, err := ioutil.ReadDir(path.Join(dst, "scripts", "gen"))
+		err = filepath.Walk(base, walker)
 		if err != nil {
-			writeError(w, 500, fmt.Errorf("Error reading directory: %v", err))
-		}
-		pathToContent = make(map[string][]byte)
-		for _, fi := range fis {
-			b, err := ioutil.ReadFile(path.Join(dst, "scripts", "gen", fi.Name()))
-			if err != nil {
-				writeError(w, 500, fmt.Errorf("Error reading spec: %v", err))
-				return
-			}
-			pathToContent[fi.Name()] = b
+			writeError(w, 500, err)
+			return
 		}
 		cache.Add(sha, pathToContent)
+	}
+
+	if requestedPath == "api-docs.json" {
+		// allow other swagger UIs access to our swagger
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 	}
 
 	if b, ok := pathToContent[requestedPath]; ok {
@@ -491,13 +533,15 @@ func (s *server) serveHTMLDiff(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	cmd := exec.Command(htmlDiffer, path.Join(base, "scripts", "gen", requestedPath), path.Join(head, "scripts", "gen", requestedPath))
-	var b bytes.Buffer
-	cmd.Stdout = &b
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		writeError(w, 500, fmt.Errorf("error running HTML differ: %v", err))
+		writeError(w, 500, fmt.Errorf("error running HTML differ: %v\nOutput:\n%v", err, stderr.String()))
 		return
 	}
-	w.Write(b.Bytes())
+	w.Write(stdout.Bytes())
 }
 
 func findHTMLDiffer() (string, error) {
@@ -513,7 +557,7 @@ func findHTMLDiffer() (string, error) {
 }
 
 func getPulls() ([]PullRequest, error) {
-	resp, err := http.Get(pullsPrefix)
+	resp, err := http.Get(fmt.Sprintf("%s%s", pullsPrefix, accessTokenQuerystring()))
 	if err != nil {
 		return nil, err
 	}
@@ -562,12 +606,6 @@ func (srv *server) makeIndex(w http.ResponseWriter, req *http.Request) {
 		writeError(w, 500, err)
 		return
 	}
-	s := "<body><ul>"
-	for _, pull := range pulls {
-		s += fmt.Sprintf(`<li>%d: <a href="%s">%s</a>: <a href="%s">%s</a>: <a href="spec/%d/">spec</a> <a href="diff/html/%d/">spec diff</a> <a href="diff/rst/%d/">rst diff</a></li>`,
-			pull.Number, pull.User.HTMLURL, pull.User.Login, pull.HTMLURL, pull.Title, pull.Number, pull.Number, pull.Number)
-	}
-	s += "</ul>"
 
 	branches, err := srv.getBranches()
 	if err != nil {
@@ -575,7 +613,48 @@ func (srv *server) makeIndex(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	s += `<div>View the spec at:<ul>`
+	// write our stuff into a buffer so that we can change our minds
+	// and write a 500 if it all goes wrong.
+	var b bytes.Buffer
+	b.Write([]byte(`
+<head>
+<script>
+function redirectToApiDocs(relativePath) {
+    var url = new URL(window.location);
+    url.pathname += relativePath;
+    var newLoc = "http://matrix.org/docs/api/client-server/?url=" + encodeURIComponent(url);
+    window.location = newLoc;
+}
+</script>
+</head>
+<body><ul>
+`))
+
+	tmpl, err := template.New("pr entry").Parse(`
+<li>{{.Number}}:
+ <a href="{{.User.HTMLURL}}">{{.User.Login}}</a>:
+ <a href="{{.HTMLURL}}">{{.Title}}</a>:
+ <a href="spec/{{.Number}}/">spec</a>
+ <a href="#" onclick="redirectToApiDocs('spec/{{.Number}}/api-docs.json')">api docs</a>
+ <a href="diff/html/{{.Number}}/">spec diff</a>
+ <a href="diff/rst/{{.Number}}/">rst diff</a>
+</li>
+`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, pull := range pulls {
+		err = tmpl.Execute(&b, pull)
+		if err != nil {
+			writeError(w, 500, err)
+			return
+		}
+	}
+	b.Write([]byte(`
+</ul>
+<div>View the spec at:<ul>
+`))
 	branchNames := []string{}
 	for _, branch := range branches {
 		if strings.HasPrefix(branch, "drafts/") {
@@ -584,16 +663,15 @@ func (srv *server) makeIndex(w http.ResponseWriter, req *http.Request) {
 	}
 	branchNames = append(branchNames, "HEAD")
 	for _, branch := range branchNames {
-		href := "spec/"+url.QueryEscape(branch)+"/"
-		s += fmt.Sprintf(`<li><a href="%s">%s</a></li>`, href, branch)
+		href := "spec/" + url.QueryEscape(branch) + "/"
+		fmt.Fprintf(&b, `<li><a href="%s">%s</a></li>`, href, branch)
 		if *includesDir != "" {
-			s += fmt.Sprintf(`<li><a href="%s?matrixdotorgstyle=1">%s, styled like matrix.org</a></li>`,
+			fmt.Fprintf(&b, `<li><a href="%s?matrixdotorgstyle=1">%s, styled like matrix.org</a></li>`,
 				href, branch)
 		}
 	}
-	s += "</ul></div></body>"
-
-	io.WriteString(w, s)
+	b.Write([]byte("</ul></div></body>"))
+	b.WriteTo(w)
 }
 
 func ignoreExitCodeOne(err error) error {
@@ -622,15 +700,19 @@ func main() {
 		"Kegsay":        true,
 		"NegativeMjark": true,
 		"richvdh":       true,
-                "ara4n":         true,
+		"ara4n":         true,
 		"leonerd":       true,
 	}
 	if err := initCache(); err != nil {
 		log.Fatal(err)
 	}
 	rand.Seed(time.Now().Unix())
-	masterCloneDir, err := gitClone(matrixDocCloneURL, false)
+	masterCloneDir, err := makeTempDir()
 	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Creating master clone dir %s\n", masterCloneDir)
+	if err = gitClone(matrixDocCloneURL, masterCloneDir, false); err != nil {
 		log.Fatal(err)
 	}
 	s := server{matrixDocCloneURL: masterCloneDir}
@@ -664,4 +746,12 @@ func initCache() error {
 	c2, err := lru.New(50) // Evict after 50 entries (i.e. 50 sha1s)
 	styledSpecCache = c2
 	return err
+}
+
+func makeTempDir() (string, error) {
+	directory := path.Join("/tmp/matrix-doc", strconv.FormatInt(rand.Int63(), 10))
+	if err := os.MkdirAll(directory, permissionsOwnerFull); err != nil {
+		return "", fmt.Errorf("error making directory %s: %v", directory, err)
+	}
+	return directory, nil
 }

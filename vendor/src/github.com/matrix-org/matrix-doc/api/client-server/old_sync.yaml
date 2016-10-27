@@ -1,3 +1,16 @@
+# Copyright 2016 OpenMarket Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 swagger: '2.0'
 info:
   title: "Matrix Client-Server Sync API"
@@ -12,11 +25,7 @@ consumes:
 produces:
   - application/json
 securityDefinitions:
-  accessToken:
-    type: apiKey
-    description: The user_id or application service access_token
-    name: access_token
-    in: query
+  $ref: definitions/security.yaml
 paths:
   "/events":
     get:
@@ -24,6 +33,11 @@ paths:
       description: |-
         This will listen for new events and return them to the caller. This will
         block until an event is received, or until the ``timeout`` is reached.
+
+        This endpoint was deprecated in r0 of this specification. Clients
+        should instead call the |/sync|_ API with a ``since`` parameter. See
+        the `migration guide
+        <https://matrix.org/docs/guides/client-server-migrating-from-v1.html#deprecated-endpoints>`_.
       security:
         - accessToken: []
       parameters:
@@ -84,7 +98,7 @@ paths:
                   type: object
                   title: Event
                   allOf:
-                    - "$ref": "../../event-schemas/schema/core-event-schema/room_event.yaml"
+                    - "$ref": "definitions/event-schemas/schema/core-event-schema/room_event.yaml"
         400:
           description: "Bad pagination ``from`` parameter."
       tags:
@@ -96,6 +110,11 @@ paths:
       description: |-
         This returns the full state for this user, with an optional limit on the
         number of messages per room to return.
+
+        This endpoint was deprecated in r0 of this specification. Clients
+        should instead call the |/sync|_ API with no ``since`` parameter. See
+        the `migration guide
+        <https://matrix.org/docs/guides/client-server-migrating-from-v1.html#deprecated-endpoints>`_.
       security:
         - accessToken: []
       parameters:
@@ -287,7 +306,7 @@ paths:
                   type: object
                   title: Event
                   allOf:
-                    - "$ref": "../../event-schemas/schema/core-event-schema/event.yaml"
+                    - "$ref": "definitions/event-schemas/schema/core-event-schema/event.yaml"
               rooms:
                 type: array
                 items:
@@ -306,7 +325,7 @@ paths:
                         title: "InviteEvent"
                         description: "The invite event if ``membership`` is ``invite``"
                         allOf:
-                          - "$ref": "../../event-schemas/schema/m.room.member"
+                          - "$ref": "definitions/event-schemas/schema/m.room.member"
                     messages:
                       type: object
                       title: PaginationChunk
@@ -334,7 +353,7 @@ paths:
                             type: object
                             title: RoomEvent
                             allOf:
-                              - "$ref": "../../event-schemas/schema/core-event-schema/room_event.yaml"
+                              - "$ref": "definitions/event-schemas/schema/core-event-schema/room_event.yaml"
                       required: ["start", "end", "chunk"]
                     state:
                       type: array
@@ -347,7 +366,7 @@ paths:
                         title: StateEvent
                         type: object
                         allOf:
-                          - "$ref": "../../event-schemas/schema/core-event-schema/state_event.yaml"
+                          - "$ref": "definitions/event-schemas/schema/core-event-schema/state_event.yaml"
                     visibility:
                       type: string
                       enum: ["private", "public"]
@@ -363,8 +382,17 @@ paths:
                         title: Event
                         type: object
                         allOf:
-                          - "$ref": "../../event-schemas/schema/core-event-schema/event.yaml"
+                          - "$ref": "definitions/event-schemas/schema/core-event-schema/event.yaml"
                   required: ["room_id", "membership"]
+              account_data:
+                type: array
+                description: |-
+                  The global private data created by this user.
+                items:
+                  title: Event
+                  type: object
+                  allOf:
+                    - "$ref": "definitions/event-schemas/schema/core-event-schema/event.yaml"
             required: ["end", "rooms", "presence"]
         404:
           description: There is no avatar URL for this user or this user does not exist.
@@ -377,6 +405,9 @@ paths:
       description: |-
         Get a single event based on ``event_id``. You must have permission to
         retrieve this event e.g. by being a member in the room for this event.
+
+        This endpoint was deprecated in r0 of this specification. Clients
+        should instead call the |/rooms/{roomId}/context/{eventId}|_ API.
       security:
         - accessToken: []
       parameters:
@@ -403,7 +434,7 @@ paths:
               }
           schema:
             allOf:
-              - "$ref": "../../event-schemas/schema/core-event-schema/event.yaml"
+              - "$ref": "definitions/event-schemas/schema/core-event-schema/event.yaml"
         404:
           description: The event was not found or you do not have permission to read this event.
       tags:

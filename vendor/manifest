@@ -42,7 +42,7 @@
 		{
 			"importpath": "github.com/matrix-org/matrix-doc",
 			"repository": "https://github.com/matrix-org/matrix-doc",
-			"revision": "2e1c2c23e4c34b88262b03c15993551718e62859",
+			"revision": "0c3ecad3d419a0cc1bda4860b17ac5f6cefc5a1c",
 			"branch": "master"
 		},
 		{

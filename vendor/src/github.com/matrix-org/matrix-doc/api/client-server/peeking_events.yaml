@@ -1,3 +1,16 @@
+# Copyright 2016 OpenMarket Ltd
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 swagger: '2.0'
 info:
   title: "Matrix Client-Server Sync Guest API"
@@ -12,11 +25,7 @@ consumes:
 produces:
   - application/json
 securityDefinitions:
-  accessToken:
-    type: apiKey
-    description: The user_id or application service access_token
-    name: access_token
-    in: query
+  $ref: definitions/security.yaml
 paths:
   "/events":
     get:
@@ -26,10 +35,10 @@ paths:
         them to the caller. This will block until an event is received, or until
         the ``timeout`` is reached.
 
-        This API is the same as the non-guest /events endpoint, but can be
-        called by guest users.
+        This API is the same as the normal ``/events`` endpoint, but can be
+        called by users who have not joined the room.
 
-        Note that the non-guest ``/events`` endpoint has been deprecated. This
+        Note that the normal ``/events`` endpoint has been deprecated. This
         API will also be deprecated at some point, but its replacement is not
         yet known.
       security:
@@ -50,15 +59,12 @@ paths:
           required: false
           x-example: "35000"
         - in: query
-          type: array
-          items:
-            type: string
+          type: string
           name: room_id
           description: |-
-            The room IDs for which events should be returned.
+            The room ID for which events should be returned.
           x-example:
-            - "!somewhere:over"
-            - "!the:rainbow"
+            - "!somewhere:over.the.rainbow"
       responses:
         200:
           description: "The events received, which may be none."
@@ -102,7 +108,7 @@ paths:
                   type: object
                   title: Event
                   allOf:
-                    - "$ref": "../../event-schemas/schema/core-event-schema/room_event.yaml"
+                    - "$ref": "definitions/event-schemas/schema/core-event-schema/room_event.yaml"
         400:
           description: "Bad pagination ``from`` parameter."
-        # No tags to exclude this from the swagger UI - use the non-guest version instead.
+        # No tags to exclude this from the swagger UI - use the normal version instead.
