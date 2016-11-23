@@ -49,6 +49,7 @@ var (
 	mediaRepositoryURLStr  = flag.String("media-repository-url", "", "The HTTP URL that the media repository will listen on")
 	clientReaderConfig     = flag.String("client-reader-config", "", "Client reader worker config")
 	clientReaderURLStr     = flag.String("client-reader-url", "", "The HTTP URL that the client reader will listen on")
+	federationSenderConfig = flag.String("federation-sender-config", "", "Federation sender worker config")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
@@ -328,6 +329,22 @@ func main() {
 				"-m", "synapse.app.client_reader",
 				"-c", *synapseConfig,
 				"-c", *clientReaderConfig,
+			)
+
+			if err != nil {
+				processLog.Panic(err)
+			}
+
+			defer cleanup()
+		}
+
+		if *federationSenderConfig != "" {
+			processLog, cleanup, err := startProcess(
+				"federation_sender", nil, terminate,
+				*synapsePython,
+				"-m", "synapse.app.federation_sender",
+				"-c", *synapseConfig,
+				"-c", *federationSenderConfig,
 			)
 
 			if err != nil {
