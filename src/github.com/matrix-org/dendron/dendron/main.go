@@ -465,9 +465,6 @@ func main() {
 		mux.Handle("/_matrix/client/api/v1/publicRooms", clientReaderFunc)
 	}
 
-	mux.HandleFunc("/_dendron/test", func(w http.ResponseWriter, req *http.Request) {
-		fmt.Fprintln(w, "test")
-	})
 	mux.Handle("/_dendron/metrics", prometheus.Handler())
 
 	// The debug pprof handlers have to be hosted under "/debug/pprof" because
