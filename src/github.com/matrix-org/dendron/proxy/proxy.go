@@ -1,7 +1,7 @@
 package proxy
 
 import (
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -15,15 +15,15 @@ import (
 // logging.
 type HTTPError struct {
 	// Err is the root cause of the error for logging
-	Err error
+	Err error `json:"-"`
 	// StatusCode is the HTTP status code to report to the client
-	StatusCode int
+	StatusCode int `json:"-"`
 	// ErrCode is an escaped JSON string to return in the "errcode" part of the
 	// JSON response.
-	ErrCode string
+	ErrCode string `json:"errcode"`
 	// Message is an escaped JSON string to return in the "message" part of the
 	// JSON response.
-	Message string
+	Message string `json:"error"`
 }
 
 // SetHeaders sets the "Content-Type" to "application/json" and sets CORS
@@ -37,15 +37,18 @@ func SetHeaders(w http.ResponseWriter) {
 
 // LogAndReplyError logs the httpError and writes a JSON formatted error to w.
 func LogAndReplyError(w http.ResponseWriter, httpError *HTTPError) {
-	log.WithFields(log.Fields{
+	flog := log.WithFields(log.Fields{
 		"error":      httpError.Err,
 		"errMessage": httpError.Message,
 		"statusCode": httpError.StatusCode,
 		"errCode":    httpError.ErrCode,
-	}).Print("Responding with error")
+	})
+	flog.Print("Responding with error")
 	SetHeaders(w)
 	w.WriteHeader(httpError.StatusCode)
-	fmt.Fprintf(w, `{"errcode":"%s","error":"%s"}`, httpError.ErrCode, httpError.Message)
+	if err := json.NewEncoder(w).Encode(httpError); err != nil {
+		flog.Errorf("error encoding error as json: %v", err)
+	}
 }
 
 // MeasureByPath records how long the requests take to process in a histogram labeled by path.
