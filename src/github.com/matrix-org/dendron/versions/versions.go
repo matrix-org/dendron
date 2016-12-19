@@ -14,8 +14,10 @@ import (
 	"github.com/matrix-org/dendron/proxy"
 )
 
-// NewHandler creates an http.Handler which serves up the client-server API versions currently served by the delegated Synapse.
-// It caches this response for updateInterval, and will serve stale cache entries if it cannot get a new value from the Synapse.
+// NewHandler creates an http.Handler which serves up the client-server API
+// versions currently served by the delegated Synapse.  It caches this response
+// for updateInterval, and will serve stale cache entries if it cannot get a
+// new value from the delegated Synapse.
 func NewHandler(synapseURL *url.URL, updateInterval time.Duration) (*Handler, error) {
 	h := &Handler{synapseURL: synapseURL}
 	if err := h.update(); err != nil {
@@ -23,11 +25,9 @@ func NewHandler(synapseURL *url.URL, updateInterval time.Duration) (*Handler, er
 	}
 
 	go func() {
-		for {
-			select {
-			case <-time.After(updateInterval):
-				h.update()
-			}
+		updateTicker := time.NewTicker(updateInterval)
+		for _ := range updateTicker.C {
+			h.update()
 		}
 	}()
 
