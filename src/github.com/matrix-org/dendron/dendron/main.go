@@ -482,8 +482,8 @@ func main() {
 	s := &http.Server{
 		Addr:           *listenAddr,
 		Handler:        mux,
-		ReadTimeout:    5 * time.Minute,
-		WriteTimeout:   5 * time.Minute,
+		ReadTimeout:    30 * time.Minute,
+		WriteTimeout:   30 * time.Minute,
 		MaxHeaderBytes: 1 << 20,
 		ErrorLog:       stdlog.New(logWriter, "", 0),
 	}
