@@ -426,7 +426,7 @@ func main() {
 		mux.HandleFunc("/_matrix/client/r0/initialSync", balancerFunc)
 		roomV1Func := func(w http.ResponseWriter, req *http.Request) {
 			parts := strings.Split(req.URL.Path, "/")
-			if len(parts) == 9 && parts[8] == "initialSync" {
+			if len(parts) == 8 && parts[7] == "initialSync" {
 				// Send room initial sync to the synchrotron
 				balancerFunc(w, req)
 			} else {
@@ -435,7 +435,7 @@ func main() {
 		}
 		roomR0Func := func(w http.ResponseWriter, req *http.Request) {
 			parts := strings.Split(req.URL.Path, "/")
-			if len(parts) == 8 && parts[7] == "initialSync" {
+			if len(parts) == 7 && parts[6] == "initialSync" {
 				// Send room initial sync to the synchrotron
 				balancerFunc(w, req)
 			} else {
