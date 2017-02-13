@@ -424,6 +424,27 @@ func main() {
 		mux.HandleFunc("/_matrix/client/api/v1/events", balancerFunc)
 		mux.HandleFunc("/_matrix/client/api/v1/initialSync", balancerFunc)
 		mux.HandleFunc("/_matrix/client/r0/initialSync", balancerFunc)
+		roomV1Func := func(w http.ResponseWriter, req *http.Request) {
+			parts := strings.Split(req.URL.Path, "/")
+			if len(parts) == 9 && parts[8] == "initialSync" {
+				// Send room initial sync to the synchrotron
+				balancerFunc(w, req)
+			} else {
+				proxyFunc(w, req)
+			}
+		}
+		roomR0Func := func(w http.ResponseWriter, req *http.Request) {
+			parts := strings.Split(req.URL.Path, "/")
+			if len(parts) == 8 && parts[7] == "initialSync" {
+				// Send room initial sync to the synchrotron
+				balancerFunc(w, req)
+			} else {
+				proxyFunc(w, req)
+			}
+		}
+
+		mux.HandleFunc("/_matrix/client/api/v1/rooms/", roomV1Func)
+		mux.HandleFunc("/_matrix/client/r0/rooms/", roomR0Func)
 	}
 
 	if federationReaderURL != nil {
