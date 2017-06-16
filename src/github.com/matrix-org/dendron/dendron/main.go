@@ -50,6 +50,8 @@ var (
 	clientReaderConfig     = flag.String("client-reader-config", "", "Client reader worker config")
 	clientReaderURLStr     = flag.String("client-reader-url", "", "The HTTP URL that the client reader will listen on")
 	federationSenderConfig = flag.String("federation-sender-config", "", "Federation sender worker config")
+	userDirectroyConfig    = flag.String("user-directory-config", "", "User directory worker config")
+	userDirectoryURLStr    = flag.String("user-directory-url", "", "The HTTP URL that the user directory will listen on")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
@@ -212,6 +214,14 @@ func main() {
 		}
 	}
 
+	var userDirectoryURL *url.URL
+	if *userDirectoryURLStr != "" {
+		userDirectoryURL, err = url.Parse(*userDirectoryURLStr)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	var synapseLog = log.WithFields(log.Fields{
 		"processURL": synapseURL.String(),
 	})
@@ -345,6 +355,22 @@ func main() {
 				"-m", "synapse.app.federation_sender",
 				"-c", *synapseConfig,
 				"-c", *federationSenderConfig,
+			)
+
+			if err != nil {
+				processLog.Panic(err)
+			}
+
+			defer cleanup()
+		}
+
+		if *userDirectroyConfig != "" {
+			processLog, cleanup, err := startProcess(
+				"urser_directory", userDirectoryURL, terminate,
+				*synapsePython,
+				"-m", "synapse.app.user_dir",
+				"-c", *synapseConfig,
+				"-c", *userDirectroyConfig,
 			)
 
 			if err != nil {
