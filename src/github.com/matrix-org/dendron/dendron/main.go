@@ -52,6 +52,8 @@ var (
 	federationSenderConfig = flag.String("federation-sender-config", "", "Federation sender worker config")
 	userDirectroyConfig    = flag.String("user-directory-config", "", "User directory worker config")
 	userDirectoryURLStr    = flag.String("user-directory-url", "", "The HTTP URL that the user directory will listen on")
+	frontendProxyConfig    = flag.String("frontend-proxy-config", "", "User directory worker config")
+	frontendProxyURLStr    = flag.String("frontend-proxy-url", "", "The HTTP URL that the user directory will listen on")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
@@ -222,6 +224,14 @@ func main() {
 		}
 	}
 
+	var frontendProxyURL *url.URL
+	if *frontendProxyURLStr != "" {
+		frontendProxyURL, err = url.Parse(*frontendProxyURLStr)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	var synapseLog = log.WithFields(log.Fields{
 		"processURL": synapseURL.String(),
 	})
@@ -371,6 +381,22 @@ func main() {
 				"-m", "synapse.app.user_dir",
 				"-c", *synapseConfig,
 				"-c", *userDirectroyConfig,
+			)
+
+			if err != nil {
+				processLog.Panic(err)
+			}
+
+			defer cleanup()
+		}
+
+		if *frontendProxyConfig != "" {
+			processLog, cleanup, err := startProcess(
+				"frontend_proxy", frontendProxyURL, terminate,
+				*synapsePython,
+				"-m", "synapse.app.frontend_proxy",
+				"-c", *synapseConfig,
+				"-c", *frontendProxyConfig,
 			)
 
 			if err != nil {
