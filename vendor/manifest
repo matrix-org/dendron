@@ -2,6 +2,12 @@
 	"version": 0,
 	"dependencies": [
 		{
+			"importpath": "github.com/Sirupsen/logrus",
+			"repository": "https://github.com/Sirupsen/logrus",
+			"revision": "be52937128b38f1d99787bb476c789e2af1147f1",
+			"branch": "master"
+		},
+		{
 			"importpath": "github.com/beorn7/perks/quantile",
 			"repository": "https://github.com/beorn7/perks",
 			"revision": "b965b613227fddccbfffe13eae360ed3fa822f8d",
@@ -16,9 +22,27 @@
 			"path": "/proto"
 		},
 		{
+			"importpath": "github.com/hashicorp/golang-lru",
+			"repository": "https://github.com/hashicorp/golang-lru",
+			"revision": "a0d98a5f288019575c6d1f4bb1573fef2d1fcdc4",
+			"branch": "master"
+		},
+		{
 			"importpath": "github.com/lib/pq",
 			"repository": "https://github.com/lib/pq",
 			"revision": "8ad2b298cadd691a77015666a5372eae5dbfac8f",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/matrix-org/dugong",
+			"repository": "https://github.com/matrix-org/dugong",
+			"revision": "6b893e5ef2dd0ddcbfdf00aafe0278237456512b",
+			"branch": "master"
+		},
+		{
+			"importpath": "github.com/matrix-org/matrix-doc",
+			"repository": "https://github.com/matrix-org/matrix-doc",
+			"revision": "0c3ecad3d419a0cc1bda4860b17ac5f6cefc5a1c",
 			"branch": "master"
 		},
 		{
@@ -70,6 +94,12 @@
 			"branch": "master"
 		},
 		{
+			"importpath": "github.com/serialx/hashring",
+			"repository": "https://github.com/serialx/hashring",
+			"revision": "75d57fa264ad17fd929304dfdb02c8e278c5c01c",
+			"branch": "master"
+		},
+		{
 			"importpath": "golang.org/x/crypto/bcrypt",
 			"repository": "https://go.googlesource.com/crypto",
 			"revision": "3760e016850398b85094c4c99e955b8c3dea5711",
@@ -103,6 +133,24 @@
 			"revision": "3760e016850398b85094c4c99e955b8c3dea5711",
 			"branch": "master",
 			"path": "/salsa20/salsa"
+		},
+		{
+			"importpath": "gopkg.in/airbrake/gobrake.v2",
+			"repository": "https://gopkg.in/airbrake/gobrake.v2",
+			"revision": "c9d51adc624b5cc4c1bf8de730a09af4878ffe2d",
+			"branch": "master"
+		},
+		{
+			"importpath": "gopkg.in/fsnotify.v1",
+			"repository": "https://gopkg.in/fsnotify.v1",
+			"revision": "8611c35ab31c1c28aa903d33cf8b6e44a399b09e",
+			"branch": "master"
+		},
+		{
+			"importpath": "gopkg.in/gemnasium/logrus-airbrake-hook.v2",
+			"repository": "https://gopkg.in/gemnasium/logrus-airbrake-hook.v2",
+			"revision": "31e6fd4bd5a98d8ee7673d24bc54ec73c31810dd",
+			"branch": "master"
 		},
 		{
 			"importpath": "gopkg.in/macaroon.v1",

@@ -23,6 +23,7 @@ for setting up a dev install of Synapse.
 
 To build Dendron itself check out this repository and build it using [gb](https://getgb.io):
 
+    gb generate
     gb build
 
 
@@ -35,7 +36,7 @@ backwards compatibility.
 
 ### Configuring Synapse
 
-You will need to configure Synapse to use [PostgreSQL])https://github.com/matrix-org/synapse#using-postgresql)
+You will need to configure Synapse to use [PostgreSQL](https://github.com/matrix-org/synapse#using-postgresql)
 for storage.
 
 You will need to setup an unsecure HTTP listener for Dendron to proxy requests to.
