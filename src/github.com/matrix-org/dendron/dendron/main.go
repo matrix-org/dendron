@@ -54,8 +54,8 @@ var (
 	userDirectoryURLStr    = flag.String("user-directory-url", "", "The HTTP URL that the user directory will listen on")
 	frontendProxyConfig    = flag.String("frontend-proxy-config", "", "Frontend proxy worker config")
 	frontendProxyURLStr    = flag.String("frontend-proxy-url", "", "The HTTP URL that the frontend proxy will listen on")
-	eventCreatorConfig    = flag.String("event-creator-config", "", "Event creator worker config")
-	eventCreatorURLStr    = flag.String("event-creator-url", "", "The HTTP URL that the event creator will listen on")
+	eventCreatorConfig     = flag.String("event-creator-config", "", "Event creator worker config")
+	eventCreatorURLStr     = flag.String("event-creator-url", "", "The HTTP URL that the event creator will listen on")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
