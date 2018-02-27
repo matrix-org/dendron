@@ -52,8 +52,10 @@ var (
 	federationSenderConfig = flag.String("federation-sender-config", "", "Federation sender worker config")
 	userDirectroyConfig    = flag.String("user-directory-config", "", "User directory worker config")
 	userDirectoryURLStr    = flag.String("user-directory-url", "", "The HTTP URL that the user directory will listen on")
-	frontendProxyConfig    = flag.String("frontend-proxy-config", "", "User directory worker config")
-	frontendProxyURLStr    = flag.String("frontend-proxy-url", "", "The HTTP URL that the user directory will listen on")
+	frontendProxyConfig    = flag.String("frontend-proxy-config", "", "Frontend proxy worker config")
+	frontendProxyURLStr    = flag.String("frontend-proxy-url", "", "The HTTP URL that the frontend proxy will listen on")
+	eventCreatorConfig     = flag.String("event-creator-config", "", "Event creator worker config")
+	eventCreatorURLStr     = flag.String("event-creator-url", "", "The HTTP URL that the event creator will listen on")
 
 	logDir = flag.String("log-dir", "var", "Logging output directory, Dendron logs to error.log, warn.log and info.log in that directory")
 )
@@ -232,6 +234,14 @@ func main() {
 		}
 	}
 
+	var eventCreatorURL *url.URL
+	if *eventCreatorURLStr != "" {
+		eventCreatorURL, err = url.Parse(*eventCreatorURLStr)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	var synapseLog = log.WithFields(log.Fields{
 		"processURL": synapseURL.String(),
 	})
@@ -397,6 +407,22 @@ func main() {
 				"-m", "synapse.app.frontend_proxy",
 				"-c", *synapseConfig,
 				"-c", *frontendProxyConfig,
+			)
+
+			if err != nil {
+				processLog.Panic(err)
+			}
+
+			defer cleanup()
+		}
+
+		if *eventCreatorConfig != "" {
+			processLog, cleanup, err := startProcess(
+				"event_creator", eventCreatorURL, terminate,
+				*synapsePython,
+				"-m", "synapse.app.event_creator",
+				"-c", *synapseConfig,
+				"-c", *eventCreatorConfig,
 			)
 
 			if err != nil {
